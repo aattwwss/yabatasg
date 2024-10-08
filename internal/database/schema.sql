@@ -29,6 +29,11 @@ CREATE TABLE IF NOT EXISTS bus_route (
         REFERENCES bus_stop (bus_stop_code)
         ON DELETE CASCADE
         ON UPDATE CASCADE,
+    CONSTRAINT fk_bus_service
+        FOREIGN KEY (service_number, direction)
+        REFERENCES bus_service (service_number, direction)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
     CONSTRAINT uq_bus_route_service_direction UNIQUE (service_number, direction)
 );
 

@@ -1,6 +1,6 @@
-# Project github.com/aattwwss/yabatasg
+# YABATASG
 
-One Paragraph of project description goes here
+Yet Another Bus Arrival Timeing Application Singapore
 
 ## Getting Started
 

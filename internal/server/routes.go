@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -23,7 +24,11 @@ func (s *Server) RegisterRoutes() http.Handler {
 	mux.Handle("GET /web", templ.Handler(web.HelloForm()))
 	mux.HandleFunc("GET /hello", web.HelloWebHandler)
 
+	s.scheduler.RegisterRoutes(mux)
 	return mux
+}
+
+func (s *Server) CrawlBusService(ctx context.Context) {
 }
 
 func (s *Server) BusService(w http.ResponseWriter, r *http.Request) {

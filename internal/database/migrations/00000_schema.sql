@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS bus_route (
         REFERENCES bus_service (service_number, direction)
         ON DELETE CASCADE
         ON UPDATE CASCADE,
-    CONSTRAINT uq_bus_route_service_direction UNIQUE (service_number, direction)
+    CONSTRAINT uq_bus_route UNIQUE (service_number, direction, stop_sequence, bus_stop_code)
 );
 
 COMMENT ON COLUMN bus_route.distance IS 'Distance in kilometres';

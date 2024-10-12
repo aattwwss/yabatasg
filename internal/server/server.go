@@ -10,20 +10,24 @@ import (
 	_ "github.com/joho/godotenv/autoload"
 
 	"github.com/aattwwss/yabatasg/internal/database"
+	"github.com/aattwwss/yabatasg/pkg/ltaapi"
 )
 
 type Server struct {
 	port int
 
-	db database.Service
+	db           database.Service
+	ltaAPIClient ltaapi.Client
 }
 
 func NewServer() *http.Server {
 	port, _ := strconv.Atoi(os.Getenv("PORT"))
+	accessKey := os.Getenv("LTA_ACCESS_KEY")
 	NewServer := &Server{
 		port: port,
 
-		db: database.New(),
+		db:           database.New(),
+		ltaAPIClient: ltaapi.New(accessKey, ""),
 	}
 
 	// Declare Server config

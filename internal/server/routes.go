@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/a-h/templ"
 	"github.com/aattwwss/yabatasg/cmd/web"
@@ -12,16 +13,25 @@ import (
 func (s *Server) RegisterRoutes() http.Handler {
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", s.HelloWorldHandler)
+	mux.HandleFunc("GET /busService", s.BusService)
+	mux.HandleFunc("GET /", s.HelloWorldHandler)
 
-	mux.HandleFunc("/health", s.healthHandler)
+	mux.HandleFunc("GET /health", s.healthHandler)
 
 	fileServer := http.FileServer(http.FS(web.Files))
-	mux.Handle("/assets/", fileServer)
-	mux.Handle("/web", templ.Handler(web.HelloForm()))
-	mux.HandleFunc("/hello", web.HelloWebHandler)
+	mux.Handle("GET /assets/", fileServer)
+	mux.Handle("GET /web", templ.Handler(web.HelloForm()))
+	mux.HandleFunc("GET /hello", web.HelloWebHandler)
 
 	return mux
+}
+
+func (s *Server) BusService(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+	skip, _ := strconv.Atoi((r.URL.Query().Get("$skip")))
+	busServices, _ := s.ltaAPIClient.GetBusServices(r.Context(), skip)
+	json, _ := json.Marshal(busServices)
+	w.Write(json)
 }
 
 func (s *Server) HelloWorldHandler(w http.ResponseWriter, r *http.Request) {

@@ -28,9 +28,6 @@ func (s *Server) RegisterRoutes() http.Handler {
 	return mux
 }
 
-func (s *Server) CrawlBusService(ctx context.Context) {
-}
-
 func (s *Server) BusService(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	skip, _ := strconv.Atoi((r.URL.Query().Get("$skip")))

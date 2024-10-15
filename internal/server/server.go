@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -26,13 +27,9 @@ type Server struct {
 func NewServer() *http.Server {
 	port, _ := strconv.Atoi(os.Getenv("PORT"))
 	accessKey := os.Getenv("LTA_ACCESS_KEY")
-	syncAPIDuration, _ := strconv.Atoi(os.Getenv("SYNC_INTERVAL_MINUTES"))
 
 	scheduler := scheduler.NewScheduler()
-	scheduler.AddTask("test", time.Duration(syncAPIDuration)*time.Minute, func() {
-		time.Sleep(time.Duration(10) * time.Second)
-		slog.Info(time.Now().String())
-	})
+	initTasksToScheduler(scheduler)
 
 	newServer := &Server{
 		port: port,
@@ -53,4 +50,20 @@ func NewServer() *http.Server {
 	}
 
 	return server
+}
+
+func initTasksToScheduler(scheduler *scheduler.Scheduler) {
+	syncAPIDuration, _ := strconv.Atoi(os.Getenv("SYNC_INTERVAL_MINUTES"))
+	scheduler.AddTask("test", time.Duration(syncAPIDuration)*time.Minute, func(ctx context.Context) {
+		for {
+			select {
+			case <-ctx.Done():
+				fmt.Println("Counting stopped")
+				return
+			default:
+				slog.Info(time.Now().String())
+				time.Sleep(time.Second) // Wait for 1 second before printing the next number
+			}
+		}
+	})
 }

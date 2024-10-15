@@ -1,0 +1,31 @@
+package yabatasg
+
+import (
+	"testing"
+
+	"context"
+	"github.com/aattwwss/yabatasg/pkg/ltaapi"
+)
+
+type mockLTAClient struct {
+	mockGetBusArrival  func(ctx context.Context, busStopCode string, serviceNumber string) (*ltaapi.BusArrival, error)
+	mockGetBusRoutes   func(ctx context.Context, skip int) (*ltaapi.Response[ltaapi.BusRoute], error)
+	mockGetBusStops    func(ctx context.Context, skip int) (*ltaapi.Response[ltaapi.BusStop], error)
+	mockGetBusServices func(ctx context.Context, skip int) (*ltaapi.Response[ltaapi.BusService], error)
+}
+
+var mockClient mockLTAClient
+
+func TestMain(m *testing.M) {
+    code := m.Run()
+    os.Exit(code)
+}
+
+func setup(){
+	mockClient := mockLTAClient{
+		mockGetBusArrival: ,
+	}
+}
+
+func TestGetBusArrival(t *testing.T) {
+}

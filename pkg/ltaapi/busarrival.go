@@ -3,8 +3,8 @@ package ltaapi
 import "time"
 
 type BusArrival struct {
-	BusStopCode string     `json:"BusStopCode"`
-	Services    []Services `json:"Services"`
+	BusStopCode string    `json:"BusStopCode"`
+	Services    []Service `json:"Services"`
 }
 
 type NextBus struct {
@@ -20,7 +20,7 @@ type NextBus struct {
 	Type             string    `json:"Type"`
 }
 
-type Services struct {
+type Service struct {
 	ServiceNo string  `json:"ServiceNo"`
 	Operator  string  `json:"Operator"`
 	NextBus   NextBus `json:"NextBus"`

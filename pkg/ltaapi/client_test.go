@@ -102,7 +102,7 @@ func TestGetBusArrival(t *testing.T) {
 		actual   interface{}
 	}{
 		{"BusStopCode", "BusStopCode", "75009", busArrival.BusStopCode},
-		{"ServiceNo", "Services[0].ServiceNo", "10", busArrival.Services[0].ServiceNo},
+		{"ServiceNo", "Services[0].ServiceNo", "10", busArrival.Services[0].ServiceNumber},
 		{"Operator", "Services[0].Operator", "SBST", busArrival.Services[0].Operator},
 		{"NextBus OriginCode", "Services[0].NextBus.OriginCode", "75009", busArrival.Services[0].NextBus.OriginCode},
 		{"NextBus DestinationCode", "Services[0].NextBus.DestinationCode", "16009", busArrival.Services[0].NextBus.DestinationCode},

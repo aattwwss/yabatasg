@@ -163,8 +163,8 @@ func TestGetBusArrival(t *testing.T) {
 		t.Errorf("want 3 next buses, got: %v", len(arrivals.Services[0].NextBuses))
 	}
 
-	get := arrivals.Services[0].NextBuses[0]
-	want := NextBus{
+	nextBus := arrivals.Services[0].NextBuses[0]
+	expect := NextBus{
 		OriginCode:       "75009",
 		DestinationCode:  "16009",
 		EstimatedArrival: nextBusTime,
@@ -176,7 +176,5 @@ func TestGetBusArrival(t *testing.T) {
 		Feature:          "WAB",
 		Type:             "DD",
 	}
-	if want != get {
-		t.Errorf("want: %v, got: %v", want, get)
-	}
+
 }

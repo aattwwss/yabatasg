@@ -21,9 +21,9 @@ type NextBus struct {
 }
 
 type Service struct {
-	ServiceNo string  `json:"ServiceNo"`
-	Operator  string  `json:"Operator"`
-	NextBus   NextBus `json:"NextBus"`
-	NextBus2  NextBus `json:"NextBus2"`
-	NextBus3  NextBus `json:"NextBus3"`
+	ServiceNumber string  `json:"ServiceNo"`
+	Operator      string  `json:"Operator"`
+	NextBus       NextBus `json:"NextBus"`
+	NextBus2      NextBus `json:"NextBus2"`
+	NextBus3      NextBus `json:"NextBus3"`
 }

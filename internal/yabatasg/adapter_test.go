@@ -67,12 +67,12 @@ var mockRoutes = []ltaapi.BusRoute{
 		StopSequence:    1,
 		BusStopCode:     "75009",
 		Distance:        0,
-		WeekDayFirstBus: "0500",
+		WeekDayFirstBus: "0510",
 		WeekDayLastBus:  "2300",
 		SATFirstBus:     "0500",
 		SATLastBus:      "2300",
-		SUNFirstBus:     "0500",
-		SUNLastBus:      "2300",
+		SUNFirstBus:     "0500-",
+		SUNLastBus:      "2300wrong",
 	},
 	{
 		ServiceNumber:   "10",
@@ -111,7 +111,7 @@ var mockBusServices = []ltaapi.BusService{
 	{
 		ServiceNumber:   "13",
 		Operator:        "SBST",
-		Direction:       2,
+		Direction:       1,
 		Category:        "TRUNK",
 		OriginCode:      "94009",
 		DestinationCode: "55509",
@@ -119,6 +119,19 @@ var mockBusServices = []ltaapi.BusService{
 		AMOffpeakFreq:   "09-13",
 		PMPeakFreq:      "08-10",
 		PMOffpeakFreq:   "11-18",
+		LoopDesc:        "",
+	},
+	{
+		ServiceNumber:   "13",
+		Operator:        "SBST",
+		Direction:       2,
+		Category:        "TRUNK",
+		OriginCode:      "94009",
+		DestinationCode: "55509",
+		AMPeakFreq:      "-",
+		AMOffpeakFreq:   "-",
+		PMPeakFreq:      "-",
+		PMOffpeakFreq:   "-",
 		LoopDesc:        "",
 	},
 }
@@ -179,4 +192,122 @@ func TestGetBusArrival(t *testing.T) {
 	if want != get {
 		t.Errorf("want: %v, got: %v", want, get)
 	}
+}
+
+func TestGetBusRoutes(t *testing.T) {
+	adapter := LTAClientAdapter{
+		client: &mockLTAClient{},
+	}
+
+	routes, _ := adapter.GetBusRoutes(context.Background(), 123)
+	if len(routes) != 2 {
+		t.Errorf("want 2 routes, got: %v", len(routes))
+	}
+
+	get := routes[0]
+	want := BusRoute{
+		ServiceNumber:   "10",
+		Operator:        "SBST",
+		Direction:       1,
+		StopSequence:    1,
+		BusStopCode:     "75009",
+		Distance:        0,
+		WeekDayFirstBus: time.Date(0, 1, 1, 5, 10, 0, 0, time.UTC),
+		WeekDayLastBus:  time.Date(0, 1, 1, 23, 0, 0, 0, time.UTC),
+		SATFirstBus:     time.Date(0, 1, 1, 5, 0, 0, 0, time.UTC),
+		SATLastBus:      time.Date(0, 1, 1, 23, 0, 0, 0, time.UTC),
+		SUNFirstBus:     time.Time{}, // zero value if time cannot be parsed
+		SUNLastBus:      time.Time{},
+	}
+	if want != get {
+		t.Errorf("want: %v, got: %v", want, get)
+	}
+}
+
+func TestGetBusStops(t *testing.T) {
+	adapter := LTAClientAdapter{
+		client: &mockLTAClient{},
+	}
+
+	stops, _ := adapter.GetBusStops(context.Background(), 123)
+	if len(stops) != 2 {
+		t.Errorf("want 2 routes, got: %v", len(stops))
+	}
+
+	get := stops[0]
+	want := BusStop{
+		BusStopCode: "23211",
+		RoadName:    "Benoi Sector",
+		Description: "Mapletree Logistics Hub",
+		Latitude:    1.31792061914698,
+		Longitude:   103.6892047185557,
+	}
+	if want != get {
+		t.Errorf("want: %v, got: %v", want, get)
+	}
+}
+
+func TestGetBusServices(t *testing.T) {
+	adapter := LTAClientAdapter{
+		client: &mockLTAClient{},
+	}
+
+	services, _ := adapter.GetBusServices(context.Background(), 123)
+	if len(services) != 2 {
+		t.Errorf("want 2 routes, got: %v", len(services))
+	}
+	tests := []struct {
+		name string
+		want BusService
+		get  BusService
+	}{
+		{
+			name: "standard",
+			get:  services[0],
+			want: BusService{
+				ServiceNumber:    "13",
+				Operator:         "SBST",
+				Direction:        1,
+				Category:         "TRUNK",
+				OriginCode:       "94009",
+				DestinationCode:  "55509",
+				AMPeakFreqMin:    10,
+				AMPeakFreqMax:    13,
+				AMOffpeakFreqMin: 9,
+				AMOffpeakFreqMax: 13,
+				PMPeakFreqMin:    8,
+				PMPeakFreqMax:    10,
+				PMOffpeakFreqMin: 11,
+				PMOffpeakFreqMax: 18,
+				LoopDesc:         "",
+			},
+		},
+		{
+			name: "empty freq",
+			get:  services[1],
+			want: BusService{
+				ServiceNumber:    "13",
+				Operator:         "SBST",
+				Direction:        2,
+				Category:         "TRUNK",
+				OriginCode:       "94009",
+				DestinationCode:  "55509",
+				AMPeakFreqMin:    0,
+				AMPeakFreqMax:    0,
+				AMOffpeakFreqMin: 0,
+				AMOffpeakFreqMax: 0,
+				PMPeakFreqMin:    0,
+				PMPeakFreqMax:    0,
+				PMOffpeakFreqMin: 0,
+				PMOffpeakFreqMax: 0,
+				LoopDesc:         "",
+			},
+		},
+	}
+	for _, tc := range tests {
+		if tc.want != tc.get {
+			t.Errorf("want: %v, got: %v", tc.want, tc.get)
+		}
+	}
+
 }

@@ -21,7 +21,6 @@ func (t *taskRunner) start() error {
 	defer t.mutex.Unlock()
 
 	if t.running {
-		slog.Info("asdasdf", "running", t.running)
 		return fmt.Errorf("task is already running")
 	}
 

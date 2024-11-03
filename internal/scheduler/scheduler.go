@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+// taskRunner describes the state of a task to be run
+// TODO: I think i can merge this together with the Task struct
 type taskRunner struct {
 	running bool
 	mutex   sync.Mutex
@@ -46,6 +48,7 @@ func (t *taskRunner) stop() error {
 	return nil
 }
 
+// Task contains the information and state of the task we are going to run
 type Task struct {
 	ID       string
 	Interval time.Duration
@@ -55,6 +58,7 @@ type Task struct {
 	mutex    sync.Mutex
 }
 
+// Scheduler handles the CRUD of tasks
 type Scheduler struct {
 	mutex sync.Mutex
 	tasks map[string]*Task

@@ -6,13 +6,16 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"strconv"
 	"time"
 
 	_ "github.com/joho/godotenv/autoload"
 
 	"github.com/aattwwss/yabatasg/internal/database"
 	"github.com/aattwwss/yabatasg/internal/scheduler"
+	"github.com/aattwwss/yabatasg/internal/yabatasg"
+	"github.com/caarlos0/env/v11"
+	"github.com/joho/godotenv"
+
 	"github.com/aattwwss/yabatasg/pkg/ltaapi"
 )
 
@@ -20,26 +23,39 @@ type Server struct {
 	port int
 
 	db           database.Service
-	ltaAPIClient ltaapi.Client
 	scheduler    *scheduler.Scheduler
+	crawler      *yabatasg.Crawler
+	ltaAPICleint ltaapi.Client
 }
 
 func NewServer() *http.Server {
-	port, _ := strconv.Atoi(os.Getenv("PORT"))
-	accessKey := os.Getenv("LTA_ACCESS_KEY")
+	if err := godotenv.Load(); err != nil {
+		slog.Error("Error loading .env file")
+		os.Exit(1)
+	}
+
+	cfg := Config{}
+	if err := env.Parse(&cfg); err != nil {
+		slog.Error("Parse env error", "error", err)
+		os.Exit(1)
+	}
 
 	scheduler := scheduler.NewScheduler()
-	initTasksToScheduler(scheduler)
+	db := database.New(cfg.DBDatabase, cfg.DBPassword, cfg.DBUsername, cfg.DBPort, cfg.DBHost, cfg.DBSchema)
+	ltaAPIClient := ltaapi.New(cfg.LTAAccessKey, cfg.LTAAPIHost)
+	ltaAPIlientAdapter := yabatasg.NewLTAClientAdapter(&ltaAPIClient)
+	crawler := yabatasg.NewCrawler(ltaAPIlientAdapter, db)
 
 	newServer := &Server{
-		port: port,
-
-		db:           database.New(),
-		ltaAPIClient: ltaapi.New(accessKey, ""),
+		port:         cfg.Port,
+		db:           db,
 		scheduler:    scheduler,
+		crawler:      crawler,
+		ltaAPICleint: ltaAPIClient,
 	}
 
 	mux := newServer.RegisterRoutes()
+	newServer.initTasksToScheduler(cfg, scheduler, crawler)
 	// Declare Server config
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", newServer.port),
@@ -52,18 +68,10 @@ func NewServer() *http.Server {
 	return server
 }
 
-func initTasksToScheduler(scheduler *scheduler.Scheduler) {
-	syncAPIDuration, _ := strconv.Atoi(os.Getenv("SYNC_INTERVAL_MINUTES"))
-	scheduler.AddTask("test", time.Duration(syncAPIDuration)*time.Minute, func(ctx context.Context) {
-		for {
-			select {
-			case <-ctx.Done():
-				fmt.Println("Counting stopped")
-				return
-			default:
-				slog.Info(time.Now().String())
-				time.Sleep(time.Second) // Wait for 1 second before printing the next number
-			}
-		}
+func (s *Server) initTasksToScheduler(cfg Config, scheduler *scheduler.Scheduler, crawler *yabatasg.Crawler) {
+	scheduler.AddTask("lta-crawler", time.Duration(cfg.SyncIntervalMinutes)*time.Minute, func(ctx context.Context) {
+		_ = crawler.CrawlBusStops(ctx)
+		_ = crawler.CrawlBusServices(ctx)
+		_ = crawler.CrawlBusRoutes(ctx)
 	})
 }

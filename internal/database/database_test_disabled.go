@@ -11,19 +11,27 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-func mustStartPostgresContainer() (func(context.Context) error, error) {
-	var (
-		dbName = "database"
-		dbPwd  = "password"
-		dbUser = "user"
-	)
+var (
+	testDatabase string
+	testPassword string
+	testUsername string
+	testPort     string
+	testHost     string
+	testSchema   string
+)
 
-	dbContainer, err := postgres.Run(
+func mustStartPostgresContainer() (func(context.Context) error, error) {
+	testDatabase = "database"
+	testPassword = "password"
+	testUsername = "user"
+	testSchema = "public"
+
+	container, err := postgres.Run(
 		context.Background(),
 		"postgres:latest",
-		postgres.WithDatabase(dbName),
-		postgres.WithUsername(dbUser),
-		postgres.WithPassword(dbPwd),
+		postgres.WithDatabase(testDatabase),
+		postgres.WithUsername(testUsername),
+		postgres.WithPassword(testPassword),
 		testcontainers.WithWaitStrategy(
 			wait.ForLog("database system is ready to accept connections").
 				WithOccurrence(2).
@@ -33,24 +41,19 @@ func mustStartPostgresContainer() (func(context.Context) error, error) {
 		return nil, err
 	}
 
-	database = dbName
-	password = dbPwd
-	username = dbUser
-
-	dbHost, err := dbContainer.Host(context.Background())
+	// Get host and port
+	testHost, err = container.Host(context.Background())
 	if err != nil {
-		return dbContainer.Terminate, err
+		return container.Terminate, err
 	}
 
-	dbPort, err := dbContainer.MappedPort(context.Background(), "5432/tcp")
+	mappedPort, err := container.MappedPort(context.Background(), "5432/tcp")
 	if err != nil {
-		return dbContainer.Terminate, err
+		return container.Terminate, err
 	}
+	testPort = mappedPort.Port()
 
-	host = dbHost
-	port = dbPort.Port()
-
-	return dbContainer.Terminate, err
+	return container.Terminate, nil
 }
 
 func TestMain(m *testing.M) {
@@ -67,14 +70,14 @@ func TestMain(m *testing.M) {
 }
 
 func TestNew(t *testing.T) {
-	srv := New()
+	srv := New(testDatabase, testPassword, testUsername, testPort, testHost, testSchema)
 	if srv == nil {
 		t.Fatal("New() returned nil")
 	}
 }
 
 func TestHealth(t *testing.T) {
-	srv := New()
+	srv := New(testDatabase, testPassword, testUsername, testPort, testHost, testSchema)
 
 	stats := srv.Health()
 
@@ -92,7 +95,7 @@ func TestHealth(t *testing.T) {
 }
 
 func TestClose(t *testing.T) {
-	srv := New()
+	srv := New(testDatabase, testPassword, testUsername, testPort, testHost, testSchema)
 
 	if srv.Close() != nil {
 		t.Fatalf("expected Close() to return nil")

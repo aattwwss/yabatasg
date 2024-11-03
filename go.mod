@@ -4,6 +4,7 @@ go 1.22.3
 
 require (
 	github.com/a-h/templ v0.2.778
+	github.com/caarlos0/env/v11 v11.2.2
 	github.com/jackc/pgx/v5 v5.7.1
 	github.com/joho/godotenv v1.5.1
 	github.com/testcontainers/testcontainers-go v0.33.0

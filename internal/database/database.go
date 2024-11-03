@@ -5,10 +5,11 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"os"
+	"log/slog"
 	"strconv"
 	"time"
 
+	"github.com/aattwwss/yabatasg/internal/yabatasg"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	_ "github.com/joho/godotenv/autoload"
 )
@@ -22,23 +23,22 @@ type Service interface {
 	// Close terminates the database connection.
 	// It returns an error if the connection cannot be closed.
 	Close() error
+
+	SaveBuService(ctx context.Context, services []yabatasg.BusService) error
+	SaveBusStops(ctx context.Context, stop []yabatasg.BusStop) error
+	SaveBusRoutes(ctx context.Context, routes []yabatasg.BusRoute) error
 }
 
 type service struct {
-	db *sql.DB
+	database string
+	db       *sql.DB
 }
 
 var (
-	database   = os.Getenv("DB_DATABASE")
-	password   = os.Getenv("DB_PASSWORD")
-	username   = os.Getenv("DB_USERNAME")
-	port       = os.Getenv("DB_PORT")
-	host       = os.Getenv("DB_HOST")
-	schema     = os.Getenv("DB_SCHEMA")
 	dbInstance *service
 )
 
-func New() Service {
+func New(database, password, username, port, host, schema string) Service {
 	// Reuse Connection
 	if dbInstance != nil {
 		return dbInstance
@@ -49,9 +49,23 @@ func New() Service {
 		log.Fatal(err)
 	}
 	dbInstance = &service{
-		db: db,
+		database: database,
+		db:       db,
 	}
 	return dbInstance
+}
+
+func (s *service) SaveBuService(ctx context.Context, services []yabatasg.BusService) error {
+	slog.Info("saving bus service", "count", len(services))
+	return nil
+}
+
+func (s *service) SaveBusStops(ctx context.Context, stop []yabatasg.BusStop) error {
+	return nil
+}
+
+func (s *service) SaveBusRoutes(ctx context.Context, routes []yabatasg.BusRoute) error {
+	return nil
 }
 
 // Health checks the health of the database connection by pinging the database.
@@ -110,6 +124,6 @@ func (s *service) Health() map[string]string {
 // If the connection is successfully closed, it returns nil.
 // If an error occurs while closing the connection, it returns the error.
 func (s *service) Close() error {
-	log.Printf("Disconnected from database: %s", database)
+	log.Printf("Disconnected from database: %s", s.database)
 	return s.db.Close()
 }

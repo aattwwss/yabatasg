@@ -20,6 +20,12 @@ type LTAClientAdapter struct {
 	client ltaClient
 }
 
+func NewLTAClientAdapter(client ltaClient) *LTAClientAdapter {
+	return &LTAClientAdapter{
+		client: client,
+	}
+}
+
 func (lta *LTAClientAdapter) GetBusArrival(ctx context.Context, busStopCode string, serviceNumber string) (*BusArrival, error) {
 	ba, err := lta.client.GetBusArrival(ctx, busStopCode, serviceNumber)
 	if err != nil {

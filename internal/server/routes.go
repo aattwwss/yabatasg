@@ -30,7 +30,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 func (s *Server) BusService(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	skip, _ := strconv.Atoi((r.URL.Query().Get("$skip")))
-	busServices, _ := s.ltaAPIClient.GetBusServices(r.Context(), skip)
+	busServices, _ := s.ltaAPICleint.GetBusServices(r.Context(), skip)
 	json, _ := json.Marshal(busServices)
 	w.Write(json)
 }

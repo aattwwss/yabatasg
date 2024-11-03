@@ -12,22 +12,27 @@ type apiClient interface {
 }
 
 type dbStore interface {
-	saveBuService(ctx context.Context, services []BusService) error
-	saveBusStops(ctx context.Context, services []BusStop) error
-	saveBusRoutes(ctx context.Context, services []BusRoute) error
+	SaveBuService(ctx context.Context, services []BusService) error
+	SaveBusStops(ctx context.Context, stop []BusStop) error
+	SaveBusRoutes(ctx context.Context, routes []BusRoute) error
 }
 
-type APICrawler struct {
+type Crawler struct {
 	client apiClient
 	store  dbStore
+}
+
+func NewCrawler(apiClient apiClient, store dbStore) *Crawler {
+	return &Crawler{apiClient, store}
 }
 
 const maxBatchSize = 500
 
 // CrawlBusServices will paginate through the api and save the results
-func (a *APICrawler) CrawlBusServices(ctx context.Context, offset int) error {
+func (c *Crawler) CrawlBusServices(ctx context.Context) error {
+	offset := 0
 	for {
-		services, err := a.client.GetBusServices(ctx, offset)
+		services, err := c.client.GetBusServices(ctx, offset)
 		if err != nil {
 			return err
 		}
@@ -36,7 +41,7 @@ func (a *APICrawler) CrawlBusServices(ctx context.Context, offset int) error {
 			break
 		}
 
-		a.store.saveBuService(ctx, services)
+		c.store.SaveBuService(ctx, services)
 		offset += maxBatchSize
 	}
 
@@ -44,9 +49,10 @@ func (a *APICrawler) CrawlBusServices(ctx context.Context, offset int) error {
 }
 
 // CrawlBusStops will paginate through the api and save the results
-func (a *APICrawler) CrawlBusStops(ctx context.Context, offset int) error {
+func (c *Crawler) CrawlBusStops(ctx context.Context) error {
+	offset := 0
 	for {
-		busStops, err := a.client.GetBusStops(ctx, offset)
+		busStops, err := c.client.GetBusStops(ctx, offset)
 		if err != nil {
 			return err
 		}
@@ -55,7 +61,7 @@ func (a *APICrawler) CrawlBusStops(ctx context.Context, offset int) error {
 			break
 		}
 
-		a.store.saveBusStops(ctx, busStops)
+		c.store.SaveBusStops(ctx, busStops)
 		offset += maxBatchSize
 	}
 
@@ -63,18 +69,19 @@ func (a *APICrawler) CrawlBusStops(ctx context.Context, offset int) error {
 }
 
 // CrawlBusRoutes will paginate through the api and save the results
-func (a *APICrawler) CrawlBusRoutes(ctx context.Context, offset int) error {
+func (c *Crawler) CrawlBusRoutes(ctx context.Context) error {
+	offset := 0
 	for {
-		services, err := a.client.GetBusRoutes(ctx, offset)
+		routes, err := c.client.GetBusRoutes(ctx, offset)
 		if err != nil {
 			return err
 		}
 
-		if len(services) == 0 {
+		if len(routes) == 0 {
 			break
 		}
 
-		a.store.saveBusRoutes(ctx, services)
+		c.store.SaveBusRoutes(ctx, routes)
 		offset += maxBatchSize
 	}
 

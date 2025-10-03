@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"html/template"
 	"io/fs"
@@ -10,7 +11,9 @@ import (
 	"time"
 
 	"encoding/json"
-	"math/rand"
+
+	"github.com/aattwwss/yabatasg/ltaapi"
+	"github.com/joho/godotenv"
 )
 
 //go:embed static
@@ -26,6 +29,12 @@ func main() {
 	}))
 	slog.SetDefault(logger)
 
+	err := godotenv.Load()
+	if err != nil {
+		slog.Error("Error loading .env file", "error", err)
+		os.Exit(1)
+	}
+
 	// Create HTTP handler for static files
 	staticFS, err := fs.Sub(staticFiles, "static")
 	if err != nil {
@@ -36,7 +45,11 @@ func main() {
 
 	// Define route for root path
 	http.HandleFunc("GET /", homeHandler)
-	http.HandleFunc("GET /api/v1/busArrival", corsMiddleware(arrivalHandler))
+
+	ltaClient := ltaapi.New(os.Getenv("LTA_ACCESS_KEY"), os.Getenv("LTA_API_HOST"))
+	busArrivalHandler := busArrivalHandler{ltaClient: &ltaClient}
+
+	http.HandleFunc("GET /api/v1/busArrival", corsMiddleware(busArrivalHandler.arrivalHandler))
 
 	// Start server
 	port := os.Getenv("PORT")
@@ -49,6 +62,14 @@ func main() {
 		slog.Error("Server failed to start", "error", err)
 		os.Exit(1)
 	}
+}
+
+type ltaClientInterface interface {
+	GetBusArrival(ctx context.Context, busStopCode string, serviceNumber string) (*ltaapi.BusArrival, error)
+}
+
+type busArrivalHandler struct {
+	ltaClient ltaClientInterface
 }
 
 func homeHandler(w http.ResponseWriter, r *http.Request) {
@@ -80,7 +101,7 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 	)
 }
 
-func arrivalHandler(w http.ResponseWriter, r *http.Request) {
+func (ba busArrivalHandler) arrivalHandler(w http.ResponseWriter, r *http.Request) {
 	// Set response header to indicate JSON content
 	w.Header().Set("Content-Type", "application/json")
 
@@ -95,15 +116,24 @@ func arrivalHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate 3 random integers
-	rand.Seed(time.Now().UnixNano())
-	randomInts := make([]int, 3)
-	for i := range randomInts {
-		randomInts[i] = rand.Intn(1000) // Random numbers between 0-999
+	arrivals, err := ba.ltaClient.GetBusArrival(context.Background(), busStopCode, serviceNo)
+	if err != nil {
+		slog.Error("Error getting bus arrival from lta api", "error", err)
+	}
+	slog.Info("%v", arrivals)
+
+	res := [3]int{}
+	for _, service := range arrivals.Services {
+		if service.ServiceNumber == serviceNo {
+			res[0] = int(service.NextBus.EstimatedArrival.Sub(time.Now()).Minutes())
+			res[1] = int(service.NextBus2.EstimatedArrival.Sub(time.Now()).Minutes())
+			res[2] = int(service.NextBus3.EstimatedArrival.Sub(time.Now()).Minutes())
+		}
+
 	}
 
 	// Encode the array as JSON and send response
-	if err := json.NewEncoder(w).Encode(randomInts); err != nil {
+	if err := json.NewEncoder(w).Encode(res); err != nil {
 		http.Error(w, "Error encoding JSON", http.StatusInternalServerError)
 		return
 	}

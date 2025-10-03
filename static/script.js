@@ -29,7 +29,6 @@ function busApp() {
 			// Listen for arrival updates
 			this.$el.addEventListener('update-arrivals', (event) => {
 				const { groupIndex, shortcutIndex, arrivals } = event.detail;
-				console.log(`groupIndex: ${groupIndex} shortcutIndex: ${shortcutIndex} arrivals: ${arrivals}`);
 				this.groups[groupIndex].shortcuts[shortcutIndex].arrivals = arrivals;
 				this.saveToLocalStorage();
 			});
@@ -244,7 +243,6 @@ function busApp() {
 		},
 
 		async fetchArrivalTime(shortcut, groupIndex, shortcutIndex) {
-			console.log(shortcut);
 			try {
 				const response = await fetch(`/api/v1/busArrival?BusStopCode=${shortcut.stopNumber}&ServiceNo=${shortcut.service}`, {
 					method: 'GET',

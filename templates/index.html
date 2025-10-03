@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<link href="data:image/x-icon;base64,AAABAAEAEBAQAAEABAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAMz/AGnd+gD8/v8ACgoKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEREREAAAAAEERERFAAAAEESIiIRQAAAQSREQiFAAABBIxEUIUAAAEEjERQhQAAAQSMRFCFAAABBIxEUIUAAAEEjERQhQAAAQSMRFCFAAABBIxEUIUAAAEEjERQhQAAAQRIzQhFAAAAEERERFAAAAABBERFAAAAAAARERAAAD4DwAA8AcAAOADAADgAwAA4AMAAOADAADgAwAA4AMAAOADAADgAwAA4AMAAOADAADgAwAA8AcAAPgPAAD8HwAA"
+		rel="icon" type="image/x-icon">
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>yabata</title>
+	<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+	<link rel="stylesheet" href="static/style.css">
+</head>
+
+<body>
+
+	<div class="container" x-data="busApp()">
+		<header>
+			<div class="logo">
+				<i class="fas fa-bus"></i>
+				<h1>Bus Arrival Tracker</h1>
+			</div>
+			<div class="controls">
+				<button class="btn btn-primary" @click="showAddModal = true">
+					<i class="fas fa-plus"></i> Add Shortcut
+				</button>
+				<button class="btn btn-secondary" @click="exportData()">
+					<i class="fas fa-download"></i> Export
+				</button>
+				<button class="btn btn-secondary" @click="$refs.importFile.click()">
+					<i class="fas fa-upload"></i> Import
+					<input type="file" x-ref="importFile" @change="importData"
+						style="display: none;">
+				</button>
+			</div>
+		</header>
+
+		<div class="search-bar">
+			<input type="text" placeholder="Search groups..." x-model="searchTerm" @input="filterGroups">
+			<button @click="filterGroups"><i class="fas fa-search"></i></button>
+		</div>
+
+		<div class="groups-container">
+			<template x-for="(group, index) in filteredGroups" :key="index">
+				<div class="group-card">
+					<div class="group-header">
+						<h2 x-text="group.name"></h2>
+						<div class="group-actions">
+							<button class="action-btn delete-btn"
+								@click="deleteGroup(index)" title="Delete Group">
+								<i class="fas fa-trash"></i>
+							</button>
+						</div>
+					</div>
+					<div class="shortcuts-container">
+						<template x-for="(shortcut, idx) in group.shortcuts" :key="idx">
+							<div class="shortcut-row">
+								<div class="shortcut-info">
+									<div class="shortcut-name"
+										x-text="`${shortcut.name}`">
+									</div>
+									<div class="bus-service"
+										x-text="`Bus ${shortcut.service}`">
+									</div>
+									<div class="bus-stop"
+										x-text="`Stop ${shortcut.stopNumber}`">
+									</div>
+								</div>
+								<div class="arrivals">
+									<div class="arrival next"
+										x-text="shortcut.arrivals && shortcut.arrivals[0] ? shortcut.arrivals[0] : '--'">
+									</div>
+									<div class="arrival upcoming"
+										x-text="shortcut.arrivals && shortcut.arrivals[1] ? shortcut.arrivals[1] : '--'">
+									</div>
+									<div class="arrival later"
+										x-text="shortcut.arrivals && shortcut.arrivals[2] ? shortcut.arrivals[2] : '--'">
+									</div>
+								</div>
+								<button class="action-btn delete-btn"
+									@click="deleteShortcut(index, idx)"
+									title="Delete Shortcut">
+									<i class="fas fa-trash"></i>
+								</button>
+							</div>
+						</template>
+					</div>
+				</div>
+			</template>
+		</div>
+
+		<!-- Toast Container -->
+		<div class="toast-container">
+			<template x-for="toast in toasts" :key="toast.id">
+				<div class="toast" :class="toast.type" x-text="toast.message"></div>
+			</template>
+		</div>
+
+		<!-- Add Shortcut Modal -->
+		<div class="modal" x-show="showAddModal" x-cloak>
+			<div class="modal-content">
+				<div class="modal-header">
+					<h2>Add New Shortcut</h2>
+					<button class="close-btn" @click="showAddModal = false">&times;</button>
+				</div>
+				<div class="modal-body">
+					<div class="form-group">
+						<label for="busService">Bus Service Number</label>
+						<input type="text" id="busService" x-model="newShortcut.service"
+							x-on:input="newShortcut.service = newShortcut.service.replace(/[^0-9]/g, '')"
+							placeholder="e.g., 188">
+					</div>
+					<div class="form-group">
+						<label for="busStop">Bus Stop Number</label>
+						<input type="text" id="busStop" x-model="newShortcut.stopNumber"
+							x-on:input="newShortcut.stopNumber = newShortcut.stopNumber.replace(/[^0-9]/g, '')"
+							placeholder="e.g., 43219">
+					</div>
+					<div class="form-group">
+						<label for="shortcutName">Shortcut Name</label>
+						<input type="text" id="shortcutName" x-model="newShortcut.name"
+							placeholder="e.g., Home to Work">
+					</div>
+					<div class="form-group">
+						<label for="groupName">Group</label>
+						<select id="groupName" x-model="newShortcut.groupName">
+							<option value="">Select a group</option>
+							<template x-for="group in groups" :key="group.name">
+								<option x-text="group.name" :value="group.name">
+								</option>
+							</template>
+							<option value="new">Create new group...</option>
+						</select>
+					</div>
+					<div class="form-group" x-show="newShortcut.groupName === 'new'">
+						<label for="newGroupName">New Group Name</label>
+						<input type="text" id="newGroupName" x-model="newShortcut.newGroupName"
+							placeholder="e.g., Work Routes">
+					</div>
+					<div class="form-actions">
+						<button class="btn btn-secondary"
+							@click="showAddModal = false">Cancel</button>
+						<button class="btn btn-primary" @click="addShortcut">Add
+							Shortcut</button>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Confirmation Modal -->
+		<div class="modal" x-show="showConfirmModal" x-cloak>
+			<div class="modal-content">
+				<div class="modal-header">
+					<h2>Confirm Deletion</h2>
+					<button class="close-btn" @click="showConfirmModal = false">&times;</button>
+				</div>
+				<div class="modal-body">
+					<p x-text="confirmMessage"></p>
+					<div class="form-actions">
+						<button class="btn btn-secondary"
+							@click="showConfirmModal = false">Cancel</button>
+						<button class="btn btn-danger" @click="confirmDelete">Delete</button>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+	<script src="static/script.js"></script>
+</body>
+
+</html>

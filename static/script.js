@@ -189,7 +189,7 @@ function busApp() {
 
 		exportData() {
 			const dataStr = JSON.stringify(this.groups, null, 2);
-			const dataUri = 'application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+			const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
 
 			const exportFileDefaultName = 'bus_shortcuts.json';
 

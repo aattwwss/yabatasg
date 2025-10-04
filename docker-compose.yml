@@ -1,0 +1,7 @@
+services:
+  ssd-bot-go:
+    container_name: yabatasg
+    image: 'yabatasg:latest'
+    restart: unless-stopped
+    env_file:
+      - .env

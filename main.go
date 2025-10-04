@@ -24,7 +24,7 @@ var templateFiles embed.FS
 
 func main() {
 	// Configure structured logger
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
 	slog.SetDefault(logger)
@@ -120,14 +120,15 @@ func (ba busArrivalHandler) arrivalHandler(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		slog.Error("Error getting bus arrival from lta api", "error", err)
 	}
-	slog.Info("%v", arrivals)
 
-	res := [3]int{}
+	res := [3]*int{}
+
+	now := time.Now()
 	for _, service := range arrivals.Services {
 		if service.ServiceNumber == serviceNo {
-			res[0] = int(service.NextBus.EstimatedArrival.Sub(time.Now()).Minutes())
-			res[1] = int(service.NextBus2.EstimatedArrival.Sub(time.Now()).Minutes())
-			res[2] = int(service.NextBus3.EstimatedArrival.Sub(time.Now()).Minutes())
+			res[0] = Ptr(diffMinutes(service.NextBus.EstimatedArrival, now))
+			res[1] = Ptr(diffMinutes(service.NextBus2.EstimatedArrival, now))
+			res[2] = Ptr(diffMinutes(service.NextBus3.EstimatedArrival, now))
 		}
 
 	}
@@ -138,13 +139,21 @@ func (ba busArrivalHandler) arrivalHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	slog.Info("S",
+	slog.Info("received request to arrivalHandler",
 		"BusStopCode", busStopCode,
 		"ServiceNo", serviceNo,
 		"path", r.URL.Path,
 		"method", r.Method,
 		"client_ip", r.RemoteAddr,
 	)
+}
+
+func diffMinutes(a, b time.Time) int {
+	return int(a.Sub(b).Minutes())
+}
+
+func Ptr[T any](v T) *T {
+	return &v
 }
 
 // CORS middleware function

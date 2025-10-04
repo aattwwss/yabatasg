@@ -68,13 +68,13 @@
 								</div>
 								<div class="arrivals">
 									<div class="arrival next"
-										x-text="shortcut.arrivals && shortcut.arrivals[0] ? shortcut.arrivals[0] : '--'">
+										x-text="Array.isArray(shortcut.arrivals) && shortcut.arrivals[0] != null && shortcut.arrivals[0] >= 0 ? shortcut.arrivals[0] : '--'">
 									</div>
 									<div class="arrival upcoming"
-										x-text="shortcut.arrivals && shortcut.arrivals[1] ? shortcut.arrivals[1] : '--'">
+										x-text="Array.isArray(shortcut.arrivals) && shortcut.arrivals[1] != null && shortcut.arrivals[1] >= 1 ? shortcut.arrivals[1] : '--'">
 									</div>
 									<div class="arrival later"
-										x-text="shortcut.arrivals && shortcut.arrivals[2] ? shortcut.arrivals[2] : '--'">
+										x-text="Array.isArray(shortcut.arrivals) && shortcut.arrivals[2] != null && shortcut.arrivals[2] >= 2 ? shortcut.arrivals[2] : '--'">
 									</div>
 								</div>
 								<button class="action-btn delete-btn"

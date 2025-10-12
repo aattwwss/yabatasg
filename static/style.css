@@ -27,6 +27,7 @@ body {
 }
 
 .container {
+	min-width: 360px;
 	max-width: 1200px;
 	margin: 0 auto;
 }
@@ -147,6 +148,16 @@ header {
 .group-actions {
 	display: flex;
 	gap: 10px;
+}
+
+.shortcut-name-container {
+	display: flex;
+	justify-content: space-between;
+	gap: 10px;
+}
+
+.shortcut-name-delete {
+	display: none;
 }
 
 .action-btn {
@@ -386,32 +397,12 @@ header {
 		gap: 15px;
 	}
 
+	/* .arrivals { */
+	/* 	width: 100%; */
+	/* 	justify-content: space-between; */
+	/* } */
 	.arrivals {
 		width: 100%;
-		justify-content: space-between;
-	}
-
-	.group-header {
-		flex-direction: column;
-		align-items: flex-start;
-		gap: 10px;
-	}
-
-	.group-actions {
-		align-self: flex-end;
-	}
-}
-
-@media (max-width: 600px) {
-
-	.arrivals .arrival:nth-child(2),
-	.arrivals .arrival:nth-child(3) {
-		display: none;
-	}
-}
-
-@media (max-width: 480px) {
-	.arrivals {
 		flex-wrap: wrap;
 		justify-content: center;
 	}
@@ -420,7 +411,37 @@ header {
 		flex: 1;
 		min-width: 80px;
 	}
+
+	/* .group-header { */
+	/* 	flex-direction: column; */
+	/* 	align-items: flex-start; */
+	/* 	gap: 10px; */
+	/* } */
+	/**/
+	/* .group-actions { */
+	/* 	align-self: flex-end; */
+	/* } */
+
+	.shortcut-delete {
+		display: none;
+	}
+
+	.shortcut-name-delete {
+		display: flex;
+	}
 }
+
+/* @media (max-width: 480px) { */
+/* 	.arrivals { */
+/* 		flex-wrap: wrap; */
+/* 		justify-content: center; */
+/* 	} */
+/**/
+/* 	.arrival { */
+/* 		flex: 1; */
+/* 		min-width: 80px; */
+/* 	} */
+/* } */
 
 .empty-state {
 	text-align: center;

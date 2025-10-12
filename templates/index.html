@@ -56,8 +56,15 @@
 						<template x-for="(shortcut, idx) in group.shortcuts" :key="idx">
 							<div class="shortcut-row">
 								<div class="shortcut-info">
-									<div class="shortcut-name"
-										x-text="`${shortcut.name}`">
+									<div class="shortcut-name-container">
+										<div class="shortcut-name"
+											x-text="`${shortcut.name}`">
+										</div>
+										<button class="action-btn delete-btn shortcut-name-delete"
+											@click="deleteShortcut(index, idx)"
+											title="Delete Shortcut">
+											<i class="fas fa-trash"></i>
+										</button>
 									</div>
 									<div class="bus-service"
 										x-text="`Bus ${shortcut.service}`">
@@ -77,7 +84,7 @@
 										x-text="Array.isArray(shortcut.arrivals) && shortcut.arrivals[2] != null && shortcut.arrivals[2] >= 2 ? shortcut.arrivals[2] : '--'">
 									</div>
 								</div>
-								<button class="action-btn delete-btn"
+								<button class="action-btn delete-btn shortcut-delete"
 									@click="deleteShortcut(index, idx)"
 									title="Delete Shortcut">
 									<i class="fas fa-trash"></i>

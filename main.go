@@ -126,9 +126,9 @@ func (ba busArrivalHandler) arrivalHandler(w http.ResponseWriter, r *http.Reques
 	now := time.Now()
 	for _, service := range arrivals.Services {
 		if service.ServiceNumber == serviceNo {
-			res[0] = Ptr(diffMinutes(service.NextBus.EstimatedArrival, now))
-			res[1] = Ptr(diffMinutes(service.NextBus2.EstimatedArrival, now))
-			res[2] = Ptr(diffMinutes(service.NextBus3.EstimatedArrival, now))
+			res[0] = Ptr(diffMinutes(service.NextBus.EstimatedArrival.Time, now))
+			res[1] = Ptr(diffMinutes(service.NextBus2.EstimatedArrival.Time, now))
+			res[2] = Ptr(diffMinutes(service.NextBus3.EstimatedArrival.Time, now))
 		}
 
 	}

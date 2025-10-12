@@ -3,14 +3,25 @@ package ltaapi
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
+	"sync"
+	"time"
 )
 
 type Client struct {
 	apiKey string
 	host   string
+	cache  map[string]*CacheEntry
+	mu     sync.RWMutex
+}
+
+// CacheEntry represents a cached response with its expiration time
+type CacheEntry struct {
+	Data      *BusArrival
+	ExpiresAt time.Time
 }
 
 const defaultHost = "https://datamall2.mytransport.sg"
@@ -22,10 +33,19 @@ func New(apiKey string, host string) Client {
 	return Client{
 		apiKey: apiKey,
 		host:   host,
+		cache:  make(map[string]*CacheEntry),
 	}
 }
 
 func (c *Client) GetBusArrival(ctx context.Context, busStopCode string, serviceNumber string) (*BusArrival, error) {
+	cacheKey := fmt.Sprintf("%s-%s", busStopCode, serviceNumber)
+	c.mu.RLock()
+	if entry, found := c.cache[cacheKey]; found && time.Now().Before(entry.ExpiresAt) {
+		c.mu.RUnlock()
+		return entry.Data, nil
+	}
+	c.mu.RUnlock()
+
 	url := c.host + "/ltaodataservice/v3/BusArrival"
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -55,6 +75,13 @@ func (c *Client) GetBusArrival(ctx context.Context, busStopCode string, serviceN
 	if err != nil {
 		return nil, err
 	}
+
+	c.mu.Lock()
+	c.cache[cacheKey] = &CacheEntry{
+		Data:      &busArrival,
+		ExpiresAt: time.Now().Add(10 * time.Second),
+	}
+	c.mu.Unlock()
 
 	return &busArrival, nil
 }

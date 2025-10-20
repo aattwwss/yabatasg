@@ -171,6 +171,10 @@ header {
 	transition: background 0.2s;
 }
 
+.action-btn.delete-group-btn {
+	color: white;
+}
+
 .action-btn.delete-btn {
 	color: #ff6b6b;
 }
@@ -380,16 +384,16 @@ header {
 
 /* Responsive Design */
 @media (max-width: 768px) {
-	header {
-		flex-direction: column;
-		gap: 15px;
-		align-items: flex-start;
-	}
+	/* header { */
+	/* 	flex-direction: column; */
+	/* 	gap: 15px; */
+	/* 	align-items: flex-start; */
+	/* } */
 
-	.controls {
-		width: 100%;
-		justify-content: space-between;
-	}
+	/* .controls { */
+	/* 	width: 100%; */
+	/* 	justify-content: space-between; */
+	/* } */
 
 	.shortcut-row {
 		flex-direction: column;

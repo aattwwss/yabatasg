@@ -18,11 +18,12 @@
 		<header>
 			<div class="logo">
 				<i class="fas fa-bus"></i>
-				<h1>Bus Arrival Tracker</h1>
+				<!-- <h1>Bus Arrival Tracker</h1> -->
+				<!-- <h1>Yet Another Bus Arrival Timing App</h1> -->
 			</div>
 			<div class="controls">
 				<button class="btn btn-primary" @click="showAddModal = true">
-					<i class="fas fa-plus"></i> Add Shortcut
+					<i class="fas fa-plus"></i> Add
 				</button>
 				<button class="btn btn-secondary" @click="exportData()">
 					<i class="fas fa-download"></i> Export
@@ -46,9 +47,9 @@
 					<div class="group-header">
 						<h2 x-text="group.name"></h2>
 						<div class="group-actions">
-							<button class="action-btn delete-btn"
+							<button class="action-btn delete-group-btn"
 								@click="deleteGroup(index)" title="Delete Group">
-								<i class="fas fa-trash"></i>
+								<i class="fas fa-x"></i>
 							</button>
 						</div>
 					</div>

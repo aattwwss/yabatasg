@@ -3,14 +3,13 @@ package main
 import (
 	"context"
 	"embed"
+	"encoding/json"
 	"html/template"
 	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
 	"time"
-
-	"encoding/json"
 
 	"github.com/aattwwss/yabatasg/ltaapi"
 	"github.com/joho/godotenv"
@@ -22,8 +21,9 @@ var staticFiles embed.FS
 //go:embed templates
 var templateFiles embed.FS
 
+var indexTmpl *template.Template
+
 func main() {
-	// Configure structured logger
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
@@ -35,7 +35,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create HTTP handler for static files
 	staticFS, err := fs.Sub(staticFiles, "static")
 	if err != nil {
 		slog.Error("Failed to create static filesystem", "error", err)
@@ -43,7 +42,12 @@ func main() {
 	}
 	http.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 
-	// Define route for root path
+	indexTmpl, err = template.ParseFS(templateFiles, "templates/index.html")
+	if err != nil {
+		slog.Error("Template parsing failed", "error", err)
+		os.Exit(1)
+	}
+
 	http.HandleFunc("GET /", homeHandler)
 
 	ltaClient := ltaapi.New(os.Getenv("LTA_ACCESS_KEY"), os.Getenv("LTA_API_HOST"))
@@ -51,7 +55,6 @@ func main() {
 
 	http.HandleFunc("GET /api/v1/busArrival", corsMiddleware(busArrivalHandler.arrivalHandler))
 
-	// Start server
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -79,46 +82,29 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse template from embedded FS
-	tmpl, err := template.ParseFS(templateFiles, "templates/index.html")
-	if err != nil {
-		slog.Error("Template parsing failed", "error", err, "template", "index.html")
+	if err := indexTmpl.Execute(w, nil); err != nil {
+		slog.Error("Template execution failed", "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
 	}
-
-	if err = tmpl.Execute(w, nil); err != nil {
-		slog.Error("Template execution failed", "error", err, "template", "index.html")
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-
-	slog.Info("Served template",
-		"template", "index.html",
-		"path", r.URL.Path,
-		"method", r.Method,
-		"client_ip", r.RemoteAddr,
-	)
 }
 
 func (ba busArrivalHandler) arrivalHandler(w http.ResponseWriter, r *http.Request) {
-	// Set response header to indicate JSON content
 	w.Header().Set("Content-Type", "application/json")
 
 	query := r.URL.Query()
 	busStopCode := query.Get("BusStopCode")
 	serviceNo := query.Get("ServiceNo")
 
-	// You can use the parameters for logging, validation, or business logic
-	// For example:
 	if busStopCode == "" || serviceNo == "" {
 		http.Error(w, "BusStopCode and ServiceNo cannot be empty", http.StatusBadRequest)
 		return
 	}
 
-	arrivals, err := ba.ltaClient.GetBusArrival(context.Background(), busStopCode, serviceNo)
+	arrivals, err := ba.ltaClient.GetBusArrival(r.Context(), busStopCode, serviceNo)
 	if err != nil {
 		slog.Error("Error getting bus arrival from lta api", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
 	}
 
 	res := [3]*int{}
@@ -126,51 +112,36 @@ func (ba busArrivalHandler) arrivalHandler(w http.ResponseWriter, r *http.Reques
 	now := time.Now()
 	for _, service := range arrivals.Services {
 		if service.ServiceNumber == serviceNo {
-			res[0] = Ptr(diffMinutes(service.NextBus.EstimatedArrival.Time, now))
-			res[1] = Ptr(diffMinutes(service.NextBus2.EstimatedArrival.Time, now))
-			res[2] = Ptr(diffMinutes(service.NextBus3.EstimatedArrival.Time, now))
+			res[0] = ptr(diffMinutes(service.NextBus.EstimatedArrival.Time, now))
+			res[1] = ptr(diffMinutes(service.NextBus2.EstimatedArrival.Time, now))
+			res[2] = ptr(diffMinutes(service.NextBus3.EstimatedArrival.Time, now))
 		}
-
 	}
 
-	// Encode the array as JSON and send response
 	if err := json.NewEncoder(w).Encode(res); err != nil {
 		http.Error(w, "Error encoding JSON", http.StatusInternalServerError)
-		return
 	}
-
-	slog.Info("received request to arrivalHandler",
-		"BusStopCode", busStopCode,
-		"ServiceNo", serviceNo,
-		"path", r.URL.Path,
-		"method", r.Method,
-		"client_ip", r.RemoteAddr,
-	)
 }
 
 func diffMinutes(a, b time.Time) int {
 	return int(a.Sub(b).Minutes())
 }
 
-func Ptr[T any](v T) *T {
+func ptr[T any](v T) *T {
 	return &v
 }
 
-// CORS middleware function
 func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Set CORS headers
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
-		// Handle preflight requests
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
 
-		// Call the next handler
 		next.ServeHTTP(w, r)
 	}
 }

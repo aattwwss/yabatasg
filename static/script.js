@@ -7,7 +7,7 @@ function busApp() {
 		showConfirmModal: false,
 		confirmMessage: '',
 		itemToDelete: null,
-		deleteType: null, // 'shortcut' or 'group'
+		deleteType: null,
 		newShortcut: {
 			service: '',
 			stopNumber: '',
@@ -18,39 +18,54 @@ function busApp() {
 		},
 		toasts: [],
 		toastId: 0,
+		loading: true,
+		pollInterval: null,
 
 		init() {
 			this.loadFromLocalStorage();
 			this.filteredGroups = [...this.groups];
 
-			// Fetch all arrivals after loading data
-			this.fetchAllArrivals();
+			this.fetchAllArrivals().then(() => {
+				this.loading = false;
+			});
 
-			// Listen for arrival updates
 			this.$el.addEventListener('update-arrivals', (event) => {
 				const { groupIndex, shortcutIndex, arrivals } = event.detail;
-				this.groups[groupIndex].shortcuts[shortcutIndex].arrivals = arrivals;
-				this.saveToLocalStorage();
+				if (this.groups[groupIndex] && this.groups[groupIndex].shortcuts[shortcutIndex]) {
+					this.groups[groupIndex].shortcuts[shortcutIndex].arrivals = arrivals;
+				}
 			});
+
+			this.pollInterval = setInterval(() => {
+				this.fetchAllArrivals();
+			}, 30000);
+		},
+
+		destroy() {
+			if (this.pollInterval) {
+				clearInterval(this.pollInterval);
+			}
 		},
 
 		loadFromLocalStorage() {
 			const savedData = localStorage.getItem('busAppData');
 			if (savedData) {
-				this.groups = JSON.parse(savedData);
+				try {
+					this.groups = JSON.parse(savedData);
+				} catch {
+					this.groups = [];
+				}
 			} else {
-				// Initialize with sample data
 				this.groups = [];
 			}
 		},
 
 		saveToLocalStorage() {
-			// Create a copy without arrival times
 			const dataToSave = this.groups.map(group => ({
 				...group,
 				shortcuts: group.shortcuts.map(shortcut => ({
 					...shortcut,
-					arrivals: undefined // Exclude arrivals from storage
+					arrivals: undefined
 				}))
 			}));
 			localStorage.setItem('busAppData', JSON.stringify(dataToSave));
@@ -63,19 +78,29 @@ function busApp() {
 			}
 
 			const term = this.searchTerm.toLowerCase();
-			this.filteredGroups = this.groups.filter(group =>
-				group.name.toLowerCase().includes(term)
-			);
+			this.filteredGroups = this.groups.reduce((acc, group) => {
+				const matchingShortcuts = group.shortcuts.filter(s =>
+					s.name.toLowerCase().includes(term) ||
+					s.service.includes(term) ||
+					s.stopNumber.includes(term)
+				);
+
+				if (group.name.toLowerCase().includes(term) || matchingShortcuts.length > 0) {
+					acc.push({
+						...group,
+						shortcuts: matchingShortcuts.length > 0 ? matchingShortcuts : group.shortcuts
+					});
+				}
+				return acc;
+			}, []);
 		},
 
 		addShortcut() {
-			// Validate inputs
 			if (!this.newShortcut.service || !this.newShortcut.stopNumber) {
 				this.showToast('Please enter both bus service and stop number', 'error');
 				return;
 			}
 
-			// Determine group name
 			let groupName = this.newShortcut.groupName;
 			if (groupName === 'new') {
 				if (!this.newShortcut.newGroupName) {
@@ -84,7 +109,6 @@ function busApp() {
 				}
 				groupName = this.newShortcut.newGroupName;
 
-				// Create new group if it doesn't exist
 				if (!this.groups.some(g => g.name === groupName)) {
 					this.groups.push({
 						name: groupName,
@@ -93,7 +117,6 @@ function busApp() {
 				}
 			}
 
-			// Check if the same service and stop already exists in the group
 			const group = this.groups.find(g => g.name === groupName);
 			if (group) {
 				const duplicate = group.shortcuts.find(s =>
@@ -107,14 +130,6 @@ function busApp() {
 				}
 			}
 
-			// // Generate mock arrival times
-			// const arrivals = [
-			// 	Math.floor(Math.random() * 10) + 1,
-			// 	Math.floor(Math.random() * 15) + 10,
-			// 	Math.floor(Math.random() * 20) + 20
-			// ];
-
-			// Create new shortcut
 			const shortcut = {
 				service: this.newShortcut.service,
 				stopNumber: this.newShortcut.stopNumber,
@@ -122,21 +137,20 @@ function busApp() {
 				arrivals: [null, null, null]
 			};
 
-			// Add to the appropriate group
 			if (group) {
 				group.shortcuts.push(shortcut);
 			}
 
-			// Save and reset
+			const groupIndex = this.groups.findIndex(g => g.name === groupName);
+			const shortcutIndex = group.shortcuts.length - 1;
+
 			this.saveToLocalStorage();
 			this.showAddModal = false;
 			this.resetForm();
 			this.filteredGroups = [...this.groups];
+			this.showToast('Shortcut added', 'success');
 
-			// Fetch arrival time for the new shortcut
-			this.fetchArrivalTime(shortcut, this.filteredGroups.length - 1, group.shortcuts.length - 1).then(() => {
-				this.showToast('Shortcut added successfully', 'success');
-			});
+			this.fetchArrivalTime(shortcut, groupIndex, shortcutIndex);
 		},
 
 		resetForm() {
@@ -169,7 +183,6 @@ function busApp() {
 				const { groupIndex, shortcutIndex } = this.itemToDelete;
 				this.groups[groupIndex].shortcuts.splice(shortcutIndex, 1);
 
-				// If the group is now empty, remove it
 				if (this.groups[groupIndex].shortcuts.length === 0) {
 					this.groups.splice(groupIndex, 1);
 				}
@@ -191,11 +204,9 @@ function busApp() {
 			const dataStr = JSON.stringify(this.groups, null, 2);
 			const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
 
-			const exportFileDefaultName = 'bus_shortcuts.json';
-
 			const linkElement = document.createElement('a');
 			linkElement.setAttribute('href', dataUri);
-			linkElement.setAttribute('download', exportFileDefaultName);
+			linkElement.setAttribute('download', 'bus_shortcuts.json');
 			linkElement.click();
 
 			this.showToast('Data exported successfully', 'success');
@@ -209,15 +220,33 @@ function busApp() {
 			reader.onload = (e) => {
 				try {
 					const importedData = JSON.parse(e.target.result);
-					if (Array.isArray(importedData)) {
-						this.groups = importedData;
-						this.saveToLocalStorage();
-						this.filteredGroups = [...this.groups];
-						this.showToast('Data imported successfully!', 'success');
-					} else {
-						this.showToast('Invalid file format. Please import a valid JSON file.', 'error');
+					if (!Array.isArray(importedData)) {
+						this.showToast('Invalid file format. Expected a JSON array.', 'error');
+						return;
 					}
-				} catch (error) {
+
+					for (const group of importedData) {
+						if (!group || typeof group.name !== 'string' || !Array.isArray(group.shortcuts)) {
+							this.showToast('Invalid file format: each group must have a name and shortcuts array.', 'error');
+							return;
+						}
+						for (const s of group.shortcuts) {
+							if (!s || !s.service || !s.stopNumber) {
+								this.showToast('Invalid file format: each shortcut must have service and stopNumber.', 'error');
+								return;
+							}
+						}
+					}
+
+					this.groups = importedData;
+					this.saveToLocalStorage();
+					this.filteredGroups = [...this.groups];
+					this.loading = true;
+					this.fetchAllArrivals().then(() => {
+						this.loading = false;
+					});
+					this.showToast('Data imported successfully!', 'success');
+				} catch {
 					this.showToast('Error parsing the file. Please check the file format.', 'error');
 				}
 			};
@@ -228,18 +257,19 @@ function busApp() {
 			const id = ++this.toastId;
 			this.toasts.push({ id, message, type });
 
-			// Remove toast after 3 seconds
 			setTimeout(() => {
 				this.toasts = this.toasts.filter(toast => toast.id !== id);
 			}, 3000);
 		},
 
 		async fetchAllArrivals() {
+			const promises = [];
 			for (const [groupIndex, group] of this.groups.entries()) {
 				for (const [shortcutIndex, shortcut] of group.shortcuts.entries()) {
-					await this.fetchArrivalTime(shortcut, groupIndex, shortcutIndex);
+					promises.push(this.fetchArrivalTime(shortcut, groupIndex, shortcutIndex));
 				}
 			}
+			await Promise.allSettled(promises);
 		},
 
 		async fetchArrivalTime(shortcut, groupIndex, shortcutIndex) {
@@ -264,7 +294,6 @@ function busApp() {
 					arrivals = [null, null, null];
 				}
 
-				// Use Alpine's reactivity system
 				this.$dispatch('update-arrivals', {
 					groupIndex,
 					shortcutIndex,
@@ -276,7 +305,7 @@ function busApp() {
 				this.$dispatch('update-arrivals', {
 					groupIndex,
 					shortcutIndex,
-					arrivals: [0, 0, 0]
+					arrivals: [null, null, null]
 				});
 				this.showToast(`Error fetching arrival time for Bus ${shortcut.service} at Stop ${shortcut.stopNumber}`, 'error');
 			}

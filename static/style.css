@@ -1,7 +1,7 @@
 :root {
 	--primary: #4361ee;
 	--secondary: #3f37c9;
-	--success: #4cc9f0;
+	--success: #22c55e;
 	--light: #f8f9fa;
 	--dark: #212529;
 	--gray: #6c757d;
@@ -10,6 +10,10 @@
 	--shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 	--card-radius: 10px;
 	--danger: #e63946;
+}
+
+[x-cloak] {
+	display: none !important;
 }
 
 * {
@@ -27,8 +31,8 @@ body {
 }
 
 .container {
-	min-width: 360px;
-	max-width: 1200px;
+	min-width: 320px;
+	max-width: 800px;
 	margin: 0 auto;
 }
 
@@ -184,7 +188,7 @@ header {
 }
 
 .action-btn.delete-btn:hover {
-	background: none;
+	background: rgba(255, 107, 107, 0.15);
 }
 
 .shortcuts-container {
@@ -384,16 +388,9 @@ header {
 
 /* Responsive Design */
 @media (max-width: 768px) {
-	/* header { */
-	/* 	flex-direction: column; */
-	/* 	gap: 15px; */
-	/* 	align-items: flex-start; */
-	/* } */
-
-	/* .controls { */
-	/* 	width: 100%; */
-	/* 	justify-content: space-between; */
-	/* } */
+	.controls {
+		gap: 6px;
+	}
 
 	.shortcut-row {
 		flex-direction: column;
@@ -401,10 +398,6 @@ header {
 		gap: 15px;
 	}
 
-	/* .arrivals { */
-	/* 	width: 100%; */
-	/* 	justify-content: space-between; */
-	/* } */
 	.arrivals {
 		width: 100%;
 		flex-wrap: wrap;
@@ -416,16 +409,6 @@ header {
 		min-width: 80px;
 	}
 
-	/* .group-header { */
-	/* 	flex-direction: column; */
-	/* 	align-items: flex-start; */
-	/* 	gap: 10px; */
-	/* } */
-	/**/
-	/* .group-actions { */
-	/* 	align-self: flex-end; */
-	/* } */
-
 	.shortcut-delete {
 		display: none;
 	}
@@ -435,30 +418,48 @@ header {
 	}
 }
 
-/* @media (max-width: 480px) { */
-/* 	.arrivals { */
-/* 		flex-wrap: wrap; */
-/* 		justify-content: center; */
-/* 	} */
-/**/
-/* 	.arrival { */
-/* 		flex: 1; */
-/* 		min-width: 80px; */
-/* 	} */
-/* } */
+@media (max-width: 480px) {
+	.btn {
+		padding: 10px 12px;
+		font-size: 14px;
+		gap: 6px;
+	}
 
-.empty-state {
+	.btn .btn-text {
+		display: none;
+	}
+}
+
+.empty-state,
+.loading-state {
 	text-align: center;
 	padding: 40px 20px;
 	color: var(--gray);
 }
 
-.empty-state i {
+.empty-state i,
+.loading-state i {
 	font-size: 48px;
 	margin-bottom: 15px;
-	color: var(--light-gray);
+	color: var(--border);
 }
 
-.empty-state p {
+.empty-state p,
+.loading-state p {
 	font-size: 16px;
+}
+
+/* Scroll lock when modal is open */
+body.modal-open {
+	overflow: hidden;
+}
+
+/* Spinner animation for loading state */
+.fa-spin {
+	animation: fa-spin 1s linear infinite;
+}
+
+@keyframes fa-spin {
+	from { transform: rotate(0deg); }
+	to { transform: rotate(360deg); }
 }

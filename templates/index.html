@@ -14,30 +14,31 @@
 
 <body>
 
-	<div class="container" x-data="busApp()">
+	<div class="container" x-data="busApp()" @keydown.escape.window="showAddModal = false; showConfirmModal = false" x-effect="document.body.classList.toggle('modal-open', showAddModal || showConfirmModal)">
 		<header>
 			<div class="logo">
 				<i class="fas fa-bus"></i>
-				<!-- <h1>Bus Arrival Tracker</h1> -->
-				<!-- <h1>Yet Another Bus Arrival Timing App</h1> -->
 			</div>
 			<div class="controls">
 				<button class="btn btn-primary" @click="showAddModal = true">
-					<i class="fas fa-plus"></i> Add
+					<i class="fas fa-plus"></i> <span class="btn-text">Add</span>
 				</button>
 				<button class="btn btn-secondary" @click="exportData()">
-					<i class="fas fa-download"></i> Export
+					<i class="fas fa-download"></i> <span class="btn-text">Export</span>
 				</button>
 				<button class="btn btn-secondary" @click="$refs.importFile.click()">
-					<i class="fas fa-upload"></i> Import
+					<i class="fas fa-upload"></i> <span class="btn-text">Import</span>
 					<input type="file" x-ref="importFile" @change="importData"
 						style="display: none;">
+				</button>
+				<button class="btn btn-secondary" @click="fetchAllArrivals()" x-show="!loading">
+					<i class="fas fa-sync-alt"></i> <span class="btn-text">Refresh</span>
 				</button>
 			</div>
 		</header>
 
-		<div class="search-bar">
-			<input type="text" placeholder="Search groups..." x-model="searchTerm" @input="filterGroups">
+		<div class="search-bar" x-show="groups.length > 0">
+			<input type="text" placeholder="Search groups and shortcuts..." x-model="searchTerm" @input="filterGroups">
 			<button @click="filterGroups"><i class="fas fa-search"></i></button>
 		</div>
 
@@ -58,31 +59,25 @@
 							<div class="shortcut-row">
 								<div class="shortcut-info">
 									<div class="shortcut-name-container">
-										<div class="shortcut-name"
-											x-text="`${shortcut.name}`">
-										</div>
+										<div class="shortcut-name" x-text="shortcut.name"></div>
 										<button class="action-btn delete-btn shortcut-name-delete"
 											@click="deleteShortcut(index, idx)"
 											title="Delete Shortcut">
 											<i class="fas fa-trash"></i>
 										</button>
 									</div>
-									<div class="bus-service"
-										x-text="`Bus ${shortcut.service}`">
-									</div>
-									<div class="bus-stop"
-										x-text="`Stop ${shortcut.stopNumber}`">
-									</div>
+									<div class="bus-service" x-text="'Bus ' + shortcut.service"></div>
+									<div class="bus-stop" x-text="'Stop ' + shortcut.stopNumber"></div>
 								</div>
 								<div class="arrivals">
 									<div class="arrival next"
-										x-text="Array.isArray(shortcut.arrivals) && shortcut.arrivals[0] != null && shortcut.arrivals[0] >= 0 ? shortcut.arrivals[0] : '--'">
+										x-text="shortcut.arrivals[0] != null ? shortcut.arrivals[0] : '--'">
 									</div>
 									<div class="arrival upcoming"
-										x-text="Array.isArray(shortcut.arrivals) && shortcut.arrivals[1] != null && shortcut.arrivals[1] >= 1 ? shortcut.arrivals[1] : '--'">
+										x-text="shortcut.arrivals[1] != null ? shortcut.arrivals[1] : '--'">
 									</div>
 									<div class="arrival later"
-										x-text="Array.isArray(shortcut.arrivals) && shortcut.arrivals[2] != null && shortcut.arrivals[2] >= 2 ? shortcut.arrivals[2] : '--'">
+										x-text="shortcut.arrivals[2] != null ? shortcut.arrivals[2] : '--'">
 									</div>
 								</div>
 								<button class="action-btn delete-btn shortcut-delete"
@@ -95,6 +90,16 @@
 					</div>
 				</div>
 			</template>
+
+			<div class="empty-state" x-show="groups.length === 0 && !loading">
+				<i class="fas fa-bus"></i>
+				<p>No bus shortcuts yet. Click Add to create one.</p>
+			</div>
+
+			<div class="loading-state" x-show="loading">
+				<i class="fas fa-spinner fa-spin"></i>
+				<p>Loading arrival times...</p>
+			</div>
 		</div>
 
 		<!-- Toast Container -->

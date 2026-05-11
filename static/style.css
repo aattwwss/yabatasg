@@ -219,19 +219,6 @@ header {
 	flex: 0 0 200px;
 }
 
-.shortcut-chevron {
-	flex: 0 0 20px;
-	color: var(--border);
-	font-size: 14px;
-	display: flex;
-	justify-content: center;
-	align-items: center;
-}
-
-.shortcut-row:hover .shortcut-chevron {
-	color: var(--gray);
-}
-
 .shortcut-info {
 	display: flex;
 	flex-direction: column;
@@ -434,9 +421,6 @@ header {
 		min-width: 80px;
 	}
 
-	.shortcut-chevron {
-		display: none;
-	}
 }
 
 @media (max-width: 480px) {

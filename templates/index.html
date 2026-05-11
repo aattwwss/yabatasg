@@ -23,14 +23,19 @@
             <span class="app-name">yabata</span>
         </div>
         <div class="header-actions">
+            <button class="btn btn-ghost" @click="showNearby()" x-show="!nearbyView">
+                <i class="fas fa-location-dot"></i> <span>Nearby</span>
+            </button>
             <button class="btn-icon" @click="toggleTheme()" :aria-label="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'">
                 <i class="fas" :class="theme === 'dark' ? 'fa-sun' : 'fa-moon'"></i>
             </button>
-            <button class="btn btn-primary" @click="showAddModal = true">
+            <button class="btn btn-primary" @click="showAddModal = true" x-show="!nearbyView">
                 <i class="fas fa-plus"></i> <span>Add</span>
             </button>
         </div>
     </header>
+
+    <div x-show="!nearbyView">
 
     <!-- Search -->
     <div class="search-wrap" x-show="groups.length > 0 || searchTerm">
@@ -122,6 +127,100 @@
         <button @click="$refs.importFile.click()"><i class="fas fa-upload"></i> Import</button>
         <input type="file" x-ref="importFile" @change="importData" accept=".json" hidden>
     </footer>
+
+    </div>
+
+    <!-- ── Nearby Stops List ── -->
+    <div x-show="nearbyView === 'stops'" x-cloak>
+        <div class="nearby-header">
+            <button class="btn-icon" @click="backToHome()"><i class="fas fa-arrow-left"></i></button>
+            <h2>Nearby Stops</h2>
+            <div></div>
+        </div>
+
+        <div x-show="nearbyLoading" class="empty-state">
+            <div class="empty-icon"><i class="fas fa-spinner fa-spin"></i></div>
+            <p>Finding stops near you...</p>
+        </div>
+
+        <div x-show="geoError" class="empty-state">
+            <div class="empty-icon"><i class="fas fa-exclamation-triangle"></i></div>
+            <p x-text="geoError"></p>
+        </div>
+
+        <div x-show="!nearbyLoading && !geoError && nearbyStops.length === 0" class="empty-state">
+            <div class="empty-icon"><i class="fas fa-map-marker-alt"></i></div>
+            <p>No stops found nearby</p>
+        </div>
+
+        <template x-if="!nearbyLoading && nearbyStops.length > 0">
+            <div class="nearby-stops">
+                <template x-for="stop in nearbyStops" :key="stop.code">
+                    <div class="nearby-stop-card" @click="selectStop(stop.code, stop.roadName)">
+                        <div class="nearby-stop-main">
+                            <span class="nearby-stop-road" x-text="stop.roadName"></span>
+                            <span class="nearby-stop-desc" x-text="stop.description"></span>
+                        </div>
+                        <div class="nearby-stop-right">
+                            <span class="nearby-stop-dist" x-text="stop.distance < 1000 ? Math.round(stop.distance) + 'm' : (stop.distance / 1000).toFixed(1) + 'km'"></span>
+                            <span class="nearby-stop-code" x-text="stop.code"></span>
+                            <i class="fas fa-chevron-right"></i>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </template>
+    </div>
+
+    <!-- ── Stop Detail ── -->
+    <div x-show="nearbyView === 'stopDetail'" x-cloak>
+        <div class="nearby-header">
+            <button class="btn-icon" @click="backToNearby()"><i class="fas fa-arrow-left"></i></button>
+            <div class="nearby-header-title">
+                <span class="nearby-stop-road" x-text="selectedStop?.roadName"></span>
+                <span class="nearby-stop-code" x-text="selectedStop?.code"></span>
+            </div>
+            <div></div>
+        </div>
+
+        <div x-show="selectedStop?.loading" class="empty-state">
+            <div class="empty-icon"><i class="fas fa-spinner fa-spin"></i></div>
+            <p>Loading arrivals...</p>
+        </div>
+
+        <div x-show="selectedStop?.error" class="empty-state">
+            <div class="empty-icon"><i class="fas fa-exclamation-triangle"></i></div>
+            <p x-text="selectedStop?.error"></p>
+        </div>
+
+        <div x-show="!selectedStop?.loading && !selectedStop?.error && (!selectedStop?.services || selectedStop.services.length === 0)" class="empty-state">
+            <div class="empty-icon"><i class="fas fa-clock"></i></div>
+            <p>No buses arriving at this stop right now</p>
+        </div>
+
+        <template x-if="!selectedStop?.loading && !selectedStop?.error && selectedStop?.services && selectedStop.services.length > 0">
+            <div class="stop-services">
+                <template x-for="svc in selectedStop.services" :key="svc.serviceNo">
+                    <div class="stop-service-card">
+                        <div class="stop-service-row">
+                            <span class="card-service" x-text="svc.serviceNo" style="font-size: 28px;"></span>
+                            <div class="arrivals">
+                                <span class="arrival" :class="arrivalClass(svc.next1)" x-text="formatArrival(svc.next1)"></span>
+                                <span class="arrival" :class="arrivalClass(svc.next2)" x-text="formatArrival(svc.next2)"></span>
+                                <span class="arrival" :class="arrivalClass(svc.next3)" x-text="formatArrival(svc.next3)"></span>
+                            </div>
+                        </div>
+                        <div class="stop-service-meta">
+                            <span x-text="svc.operator"></span>
+                            <button class="btn btn-ghost" style="padding:6px 10px;font-size:12px;margin-left:auto;" @click.stop="addShortcutFromStop(svc.serviceNo, selectedStop.code)">
+                                <i class="fas fa-plus"></i> Add
+                            </button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </template>
+    </div>
 
     <!-- Toasts -->
     <div class="toast-container">

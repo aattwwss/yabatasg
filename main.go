@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"embed"
+	"encoding/json"
 	"html/template"
 	"io/fs"
 	"log/slog"
@@ -14,6 +15,8 @@ import (
 
 	"github.com/aattwwss/yabatasg/internal/handler"
 	"github.com/aattwwss/yabatasg/internal/lta"
+	"github.com/aattwwss/yabatasg/internal/store"
+	"github.com/aattwwss/yabatasg/internal/syncer"
 	"github.com/joho/godotenv"
 )
 
@@ -37,15 +40,34 @@ func main() {
 		os.Exit(1)
 	}
 
-	mux := http.NewServeMux()
+	dbPath := os.Getenv("DB_PATH")
+	if dbPath == "" {
+		dbPath = "yabatasg.db"
+	}
 
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+	stopsStore, err := store.New(dbPath)
+	if err != nil {
+		slog.Error("Failed to open SQLite store", "error", err)
+		os.Exit(1)
+	}
+	defer stopsStore.Close()
 
 	indexTmpl, err := template.ParseFS(templateFiles, "templates/index.html")
 	if err != nil {
 		slog.Error("Template parsing failed", "error", err)
 		os.Exit(1)
 	}
+
+	ltaClient := lta.New(os.Getenv("LTA_ACCESS_KEY"), os.Getenv("LTA_API_HOST"))
+	stopsSyncer := syncer.New(stopsStore, ltaClient)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go stopsSyncer.Run(ctx)
+
+	mux := http.NewServeMux()
+
+	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
@@ -59,9 +81,24 @@ func main() {
 		}
 	})
 
-	ltaClient := lta.New(os.Getenv("LTA_ACCESS_KEY"), os.Getenv("LTA_API_HOST"))
 	arrivalHandler := handler.NewBusArrival(ltaClient)
 	mux.Handle("GET /api/v1/busArrival", corsMiddleware(arrivalHandler))
+
+	nearbyHandler := handler.NewNearby(stopsStore)
+	mux.Handle("GET /api/v1/stops/nearby", corsMiddleware(nearbyHandler))
+
+	stopDetailHandler := handler.NewStopDetail(ltaClient)
+	mux.Handle("GET /api/v1/stops/{code}/arrivals", corsMiddleware(stopDetailHandler))
+
+	mux.HandleFunc("POST /api/v1/stops/sync", corsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if err := stopsSyncer.SyncNow(); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	})))
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -78,9 +115,10 @@ func main() {
 		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 		<-quit
 		slog.Info("Shutting down server...")
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := srv.Shutdown(ctx); err != nil {
+		cancel()
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer shutdownCancel()
+		if err := srv.Shutdown(shutdownCtx); err != nil {
 			slog.Error("Server forced to shutdown", "error", err)
 		}
 	}()

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -80,4 +81,35 @@ func (c *Client) GetBusArrival(ctx context.Context, busStopCode, serviceNumber s
 	c.mu.Unlock()
 
 	return &busArrival, nil
+}
+
+func (c *Client) GetBusStops(ctx context.Context, skip int) (*Response[BusStop], error) {
+	url := c.host + "/ltaodataservice/BusStops"
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	q := req.URL.Query()
+	q.Add("$skip", strconv.Itoa(skip))
+	req.URL.RawQuery = q.Encode()
+	req.Header.Add("AccountKey", c.apiKey)
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var busStops Response[BusStop]
+	if err := json.Unmarshal(body, &busStops); err != nil {
+		return nil, err
+	}
+
+	return &busStops, nil
 }

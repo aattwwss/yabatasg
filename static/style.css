@@ -597,3 +597,113 @@ body.modal-open { overflow: hidden; }
     .search-hint { display: none; }
     .header .btn span { display: none; }
 }
+
+/* ── Nearby ── */
+.nearby-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0 18px;
+}
+.nearby-header h2 { font-size: 18px; font-weight: 700; }
+
+.nearby-header-title {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.nearby-stops {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.nearby-stop-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 14px 16px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.nearby-stop-card:active { background: var(--surface-hover); }
+
+.nearby-stop-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.nearby-stop-road {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.nearby-stop-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.nearby-stop-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    flex-shrink: 0;
+    margin-left: 12px;
+}
+
+.nearby-stop-dist {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--primary);
+}
+.nearby-stop-code {
+    font-size: 12px;
+    color: var(--text-tertiary);
+}
+
+/* ── Stop Detail ── */
+.stop-services {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.stop-service-card {
+    background: var(--surface);
+    border-radius: 14px;
+    padding: 16px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.stop-service-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.stop-service-meta {
+    display: flex;
+    align-items: center;
+    font-size: 13px;
+    color: var(--text-secondary);
+}

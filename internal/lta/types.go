@@ -52,3 +52,15 @@ type NextBus struct {
 	Feature          string   `json:"Feature"`
 	Type             string   `json:"Type"`
 }
+
+type Response[T any] struct {
+	Value []T `json:"value"`
+}
+
+type BusStop struct {
+	BusStopCode string  `json:"BusStopCode"`
+	RoadName    string  `json:"RoadName"`
+	Description string  `json:"Description"`
+	Latitude    float64 `json:"Latitude"`
+	Longitude   float64 `json:"Longitude"`
+}

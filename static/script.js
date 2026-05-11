@@ -31,6 +31,13 @@ function busApp() {
         _toastId: 0,
         _failCount: {},
 
+        // nearby
+        nearbyView: '',
+        nearbyStops: [],
+        selectedStop: null,
+        geoError: '',
+        nearbyLoading: false,
+
         init() {
             this._loadTheme();
             this._load();
@@ -220,6 +227,64 @@ function busApp() {
             if (min < 60) return `${min}m ago`;
             return `${Math.floor(min / 60)}h ago`;
         },
+
+        // ── Nearby ──
+        showNearby() {
+            this.nearbyView = 'stops';
+            this.geoError = '';
+            this.nearbyStops = [];
+            this.nearbyLoading = true;
+
+            if (!navigator.geolocation) {
+                this.geoError = 'Geolocation not supported by your browser';
+                this.nearbyLoading = false;
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(
+                pos => this._loadNearby(pos.coords.latitude, pos.coords.longitude),
+                err => { this.geoError = 'Location unavailable — check permissions'; this.nearbyLoading = false; },
+                { timeout: 10000, maximumAge: 60000 }
+            );
+        },
+
+        async _loadNearby(lat, lng) {
+            try {
+                const r = await fetch(`/api/v1/stops/nearby?lat=${lat}&lng=${lng}&limit=20`);
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                this.nearbyStops = await r.json();
+            } catch {
+                this.geoError = 'Failed to load nearby stops';
+            }
+            this.nearbyLoading = false;
+        },
+
+        async selectStop(code, roadName) {
+            this.nearbyView = 'stopDetail';
+            this.selectedStop = { code, roadName, services: [], loading: true, error: '' };
+            try {
+                const r = await fetch(`/api/v1/stops/${code}/arrivals`);
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                const data = await r.json();
+                this.selectedStop.services = data.services || [];
+                this.selectedStop.loading = false;
+            } catch {
+                this.selectedStop.error = 'Failed to load arrivals';
+                this.selectedStop.loading = false;
+            }
+        },
+
+        addShortcutFromStop(serviceNo, stopCode) {
+            this.form.service = serviceNo;
+            this.form.stopNumber = stopCode;
+            this.form.name = `Bus ${serviceNo} - Stop ${stopCode}`;
+            this.form.groupName = this.groups.length > 0 ? this.groups[0].name : '';
+            this.nearbyView = '';
+            this.showAddModal = true;
+        },
+
+        backToNearby() { this.nearbyView = 'stops'; this.selectedStop = null; },
+        backToHome() { this.nearbyView = ''; this.selectedStop = null; this.nearbyStops = []; },
 
         async _fetchAll() {
             const jobs = [];

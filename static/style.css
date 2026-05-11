@@ -199,12 +199,29 @@ header {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	padding: 5px;
+	padding: 8px 5px;
 	border-bottom: 1px solid var(--border);
 }
 
 .shortcut-row:last-child {
 	border-bottom: none;
+}
+
+.shortcut-info {
+	flex: 1;
+	min-width: 0;
+}
+
+.arrivals {
+	flex-shrink: 0;
+	width: 200px;
+}
+
+.shortcut-delete {
+	flex-shrink: 0;
+	width: 32px;
+	display: flex;
+	justify-content: center;
 }
 
 .shortcut-info {

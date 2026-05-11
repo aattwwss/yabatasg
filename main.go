@@ -47,7 +47,7 @@ func main() {
 
 	stopsStore, err := store.New(dbPath)
 	if err != nil {
-		slog.Error("Failed to open SQLite store", "error", err)
+		slog.Error("Failed to open SQLite store", "path", dbPath, "error", err)
 		os.Exit(1)
 	}
 	defer stopsStore.Close()

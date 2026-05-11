@@ -1,189 +1,170 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-	<link href="data:image/x-icon;base64,AAABAAEAEBAQAAEABAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAMz/AGnd+gD8/v8ACgoKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEREREAAAAAEERERFAAAAEESIiIRQAAAQSREQiFAAABBIxEUIUAAAEEjERQhQAAAQSMRFCFAAABBIxEUIUAAAEEjERQhQAAAQSMRFCFAAABBIxEUIUAAAEEjERQhQAAAQRIzQhFAAAAEERERFAAAAABBERFAAAAAAARERAAAD4DwAA8AcAAOADAADgAwAA4AMAAOADAADgAwAA4AMAAOADAADgAwAA4AMAAOADAADgAwAA8AcAAPgPAAD8HwAA"
-		rel="icon" type="image/x-icon">
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>yabata</title>
-	<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
-	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-	<link rel="stylesheet" href="static/style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>yabata</title>
+    <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAQAAEABAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAMz/AGnd+gD8/v8ACgoKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEREREAAAAAEERERFAAAAEESIiIRQAAAQSREQiFAAABBIxEUIUAAAEEjERQhQAAAQSMRFCFAAABBIxEUIUAAAEEjERQhQAAAQSMRFCFAAABBIxEUIUAAAEEjERQhQAAAQRIzQhFAAAAEERERFAAAAABBERFAAAAAAARERAAAD4DwAA8AcAAOADAADgAwAA4AMAAOADAADgAwAA4AMAAOADAADgAwAA4AMAAOADAADgAwAA8AcAAPgPAAD8HwAA">
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="static/style.css">
 </head>
-
 <body>
 
-	<div class="container" x-data="busApp()"
-		@keydown.escape.window="showAddModal = false; showConfirmModal = false; closeSwipe()"
-		x-effect="document.body.classList.toggle('modal-open', showAddModal || showConfirmModal)">
+<div class="container" x-data="busApp()"
+    x-effect="document.body.classList.toggle('modal-open', showAddModal || showConfirmModal)"
+    @keydown.escape.window="showAddModal = false; showConfirmModal = false; _closeSwipe()">
 
-		<header>
-			<div class="logo">
-				<i class="fas fa-bus"></i>
-			</div>
-			<button class="btn btn-primary" @click="showAddModal = true">
-				<i class="fas fa-plus"></i> <span class="btn-text">Add</span>
-			</button>
-		</header>
+    <!-- Header -->
+    <div class="header">
+        <div class="header-title"><i class="fas fa-bus"></i> yabata</div>
+        <button class="btn btn-primary" @click="showAddModal = true">
+            <i class="fas fa-plus"></i> Add
+        </button>
+    </div>
 
-		<div class="search-bar" x-show="groups.length > 0">
-			<input type="text" placeholder="Search..." x-model="searchTerm" @input="filterGroups">
-			<button @click="filterGroups"><i class="fas fa-search"></i></button>
-		</div>
+    <!-- Search -->
+    <div class="search-wrap" x-show="groups.length > 0">
+        <input type="text" placeholder="Search services, stops, names..." x-model="searchTerm" @input="filter">
+        <button @click="filter"><i class="fas fa-search"></i></button>
+    </div>
 
-		<div class="groups-container">
-			<template x-for="(group, index) in filteredGroups" :key="index">
-				<div class="group-section">
-					<div class="group-label">
-						<span x-text="group.name"></span>
-						<button class="group-delete-btn" @click="deleteGroup(index)"
-							title="Delete group">
-							<i class="fas fa-times"></i>
-						</button>
-					</div>
+    <!-- Groups & Cards -->
+    <template x-for="(group, gi) in filteredGroups" :key="gi">
+        <div class="group-section">
+            <div class="group-header">
+                <span class="group-name" x-text="group.name"></span>
+                <button class="group-del" @click="askDeleteGroup(gi)" title="Delete group">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
 
-					<template x-for="(shortcut, idx) in group.shortcuts" :key="idx">
-						<div class="card-wrapper"
-							:class="{ 'is-swiped': swipedCard && swipedCard.group === index && swipedCard.shortcut === idx }">
-							<div class="card-delete-zone"
-								@click.stop="deleteShortcutNow(index, idx)">
-								<i class="fas fa-trash"></i>
-								<span>Delete</span>
-							</div>
-							<div class="card"
-								:class="{ 'is-stale': isStale(shortcut) }"
-								@touchstart.passive="onTouchStart($event, index, idx)"
-								@touchmove="onTouchMove($event)"
-								@touchend="onTouchEnd($event)">
-								<button class="desktop-delete"
-									@click.stop="deleteShortcutNow(index, idx)"
-									title="Delete">
-									<i class="fas fa-times"></i>
-								</button>
-								<div class="card-main">
-									<span class="card-service" x-text="shortcut.service"></span>
-									<div class="arrivals">
-										<div class="arrival"
-											:class="arrivalClass(shortcut.arrivals[0], 0)"
-											x-text="shortcut.arrivals[0] != null ? shortcut.arrivals[0] + ' min' : '--'">
-										</div>
-										<div class="arrival"
-											:class="arrivalClass(shortcut.arrivals[1], 1)"
-											x-text="shortcut.arrivals[1] != null ? shortcut.arrivals[1] + ' min' : '--'">
-										</div>
-										<div class="arrival"
-											:class="arrivalClass(shortcut.arrivals[2], 2)"
-											x-text="shortcut.arrivals[2] != null ? shortcut.arrivals[2] + ' min' : '--'">
-										</div>
-									</div>
-								</div>
-								<div class="card-details">
-									<span class="card-name" x-text="shortcut.name"></span>
-									<span class="card-stop" x-text="'Stop ' + shortcut.stopNumber"></span>
-								</div>
-							</div>
-						</div>
-					</template>
-				</div>
-			</template>
+            <template x-for="(s, si) in group.shortcuts" :key="si">
+                <div class="card-outer" :class="{ swiped: swiped && swiped.gi === gi && swiped.si === si }">
+                    <!-- Swipe background -->
+                    <div class="card-swipe-bg" @click.stop="deleteShortcut(gi, si)">
+                        <i class="fas fa-trash"></i> Delete
+                    </div>
+                    <!-- Card -->
+                    <div class="card" :class="{ stale: isStale(s) }"
+                        @touchstart.passive="touchStart($event, gi, si)"
+                        @touchmove="touchMove($event)"
+                        @touchend="touchEnd()">
+                        <!-- Desktop delete -->
+                        <button class="card-del-desktop" @click.stop="deleteShortcut(gi, si)" title="Delete">
+                            <i class="fas fa-times"></i>
+                        </button>
+                        <!-- Top row: service + arrivals -->
+                        <div class="card-row">
+                            <span class="card-service" x-text="s.service"></span>
+                            <div class="arrivals">
+                                <span class="arrival" :class="arrivalClass(s.arrivals[0])"
+                                    x-text="s.arrivals[0] != null ? s.arrivals[0] + ' min' : '--'"></span>
+                                <span class="arrival" :class="arrivalClass(s.arrivals[1])"
+                                    x-text="s.arrivals[1] != null ? s.arrivals[1] + ' min' : '--'"></span>
+                                <span class="arrival" :class="arrivalClass(s.arrivals[2])"
+                                    x-text="s.arrivals[2] != null ? s.arrivals[2] + ' min' : '--'"></span>
+                            </div>
+                        </div>
+                        <!-- Bottom row: name + stop -->
+                        <div class="card-meta">
+                            <span x-text="s.name || 'Unnamed'"></span>
+                            <span class="sep" x-text="'· Stop ' + s.stopNumber"></span>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </template>
 
-			<div class="empty-state" x-show="groups.length === 0 && !loading">
-				<i class="fas fa-bus"></i>
-				<p>No shortcuts yet. Tap Add to get started.</p>
-			</div>
+    <!-- Empty / Loading -->
+    <div class="empty-state" x-show="groups.length === 0 && !loading">
+        <i class="fas fa-bus"></i>
+        <p>No shortcuts yet — tap Add to get started.</p>
+    </div>
+    <div class="loading-state" x-show="loading">
+        <i class="fas fa-spinner fa-spin"></i>
+        <p>Loading arrival times...</p>
+    </div>
 
-			<div class="loading-state" x-show="loading">
-				<i class="fas fa-spinner fa-spin"></i>
-				<p>Loading arrival times...</p>
-			</div>
-		</div>
+    <!-- Footer -->
+    <div class="footer" x-show="groups.length > 0">
+        <button @click="_fetchAll()"><i class="fas fa-sync-alt"></i> Refresh</button>
+        <button @click="exportData()"><i class="fas fa-download"></i> Export</button>
+        <button @click="$refs.importFile.click()"><i class="fas fa-upload"></i> Import</button>
+        <input type="file" x-ref="importFile" @change="importData" accept=".json" hidden>
+    </div>
 
-		<div class="footer-actions" x-show="groups.length > 0">
-			<button @click="fetchAllArrivals()">
-				<i class="fas fa-sync-alt"></i> <span>Refresh</span>
-			</button>
-			<button @click="exportData()">
-				<i class="fas fa-download"></i> <span>Export</span>
-			</button>
-			<button @click="$refs.importFile.click()">
-				<i class="fas fa-upload"></i> <span>Import</span>
-			</button>
-			<input type="file" x-ref="importFile" @change="importData" style="display: none;">
-		</div>
+    <!-- Toasts -->
+    <div class="toast-container">
+        <template x-for="t in toasts" :key="t.id">
+            <div class="toast" :class="t.type" x-text="t.msg"></div>
+        </template>
+    </div>
 
-		<div class="toast-container">
-			<template x-for="toast in toasts" :key="toast.id">
-				<div class="toast" :class="toast.type" x-text="toast.message"></div>
-			</template>
-		</div>
+    <!-- Add Modal -->
+    <div class="modal-backdrop" x-show="showAddModal" x-cloak
+        @click.self="showAddModal = false">
+        <div class="modal-sheet">
+            <div class="modal-head">
+                <h2>Add Shortcut</h2>
+                <button class="modal-close" @click="showAddModal = false">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="field">
+                    <label>Bus Service</label>
+                    <input type="text" x-model="form.service" @input="onlyDigits" placeholder="e.g. 188">
+                </div>
+                <div class="field">
+                    <label>Bus Stop Number</label>
+                    <input type="text" x-model="form.stopNumber" @input="onlyDigits" placeholder="e.g. 43219">
+                </div>
+                <div class="field">
+                    <label>Name (optional)</label>
+                    <input type="text" x-model="form.name" placeholder="e.g. Home to Office">
+                </div>
+                <div class="field">
+                    <label>Group</label>
+                    <select x-model="form.groupName">
+                        <option value="">Select a group...</option>
+                        <template x-for="g in groups" :key="g.name">
+                            <option :value="g.name" x-text="g.name"></option>
+                        </template>
+                        <option value="__new">+ Create new group...</option>
+                    </select>
+                </div>
+                <div class="field" x-show="form.groupName === '__new'">
+                    <label>New Group Name</label>
+                    <input type="text" x-model="form.newGroupName" placeholder="e.g. Work Routes">
+                </div>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" @click="showAddModal = false">Cancel</button>
+                    <button class="btn btn-primary" @click="add">Add Shortcut</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
-		<!-- Add Shortcut Modal -->
-		<div class="modal" x-show="showAddModal" x-cloak>
-			<div class="modal-content">
-				<div class="modal-header">
-					<h2>Add Shortcut</h2>
-					<button class="close-btn" @click="showAddModal = false">&times;</button>
-				</div>
-				<div class="modal-body">
-					<div class="form-group">
-						<label for="busService">Bus Service Number</label>
-						<input type="text" id="busService" x-model="newShortcut.service"
-							x-on:input="newShortcut.service = newShortcut.service.replace(/[^0-9]/g, '')"
-							placeholder="e.g., 188">
-					</div>
-					<div class="form-group">
-						<label for="busStop">Bus Stop Number</label>
-						<input type="text" id="busStop" x-model="newShortcut.stopNumber"
-							x-on:input="newShortcut.stopNumber = newShortcut.stopNumber.replace(/[^0-9]/g, '')"
-							placeholder="e.g., 43219">
-					</div>
-					<div class="form-group">
-						<label for="shortcutName">Name</label>
-						<input type="text" id="shortcutName" x-model="newShortcut.name"
-							placeholder="e.g., Home to Work">
-					</div>
-					<div class="form-group">
-						<label for="groupName">Group</label>
-						<select id="groupName" x-model="newShortcut.groupName">
-							<option value="">Select a group</option>
-							<template x-for="group in groups" :key="group.name">
-								<option x-text="group.name" :value="group.name"></option>
-							</template>
-							<option value="new">Create new group...</option>
-						</select>
-					</div>
-					<div class="form-group" x-show="newShortcut.groupName === 'new'">
-						<label for="newGroupName">New Group Name</label>
-						<input type="text" id="newGroupName" x-model="newShortcut.newGroupName"
-							placeholder="e.g., Work Routes">
-					</div>
-					<div class="form-actions">
-						<button class="btn btn-secondary" @click="showAddModal = false">Cancel</button>
-						<button class="btn btn-primary" @click="addShortcut">Add Shortcut</button>
-					</div>
-				</div>
-			</div>
-		</div>
+    <!-- Confirm Modal -->
+    <div class="modal-backdrop" x-show="showConfirmModal" x-cloak
+        @click.self="showConfirmModal = false">
+        <div class="modal-sheet">
+            <div class="modal-head">
+                <h2>Delete Group</h2>
+                <button class="modal-close" @click="showConfirmModal = false">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p x-text="confirmMsg" style="margin-bottom: 4px;"></p>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" @click="showConfirmModal = false">Cancel</button>
+                    <button class="btn btn-danger" @click="confirmAction()">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
-		<!-- Confirmation Modal (group deletion only) -->
-		<div class="modal" x-show="showConfirmModal" x-cloak>
-			<div class="modal-content">
-				<div class="modal-header">
-					<h2>Delete Group</h2>
-					<button class="close-btn" @click="showConfirmModal = false">&times;</button>
-				</div>
-				<div class="modal-body">
-					<p x-text="confirmMessage"></p>
-					<div class="form-actions">
-						<button class="btn btn-secondary" @click="showConfirmModal = false">Cancel</button>
-						<button class="btn btn-danger" @click="confirmDelete">Delete</button>
-					</div>
-				</div>
-			</div>
-		</div>
-	</div>
-	<script src="static/script.js"></script>
+</div>
+
+<script src="static/script.js"></script>
 </body>
-
 </html>

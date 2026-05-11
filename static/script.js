@@ -1,376 +1,262 @@
 function busApp() {
-	return {
-		searchTerm: '',
-		filteredGroups: [],
-		groups: [],
-		showAddModal: false,
-		showConfirmModal: false,
-		confirmMessage: '',
-		itemToDelete: null,
-		newShortcut: {
-			service: '',
-			stopNumber: '',
-			name: '',
-			groupName: '',
-			newGroupName: ''
-		},
-		toasts: [],
-		toastId: 0,
-		loading: true,
-		pollInterval: null,
+    const STORAGE_KEY = 'busAppData';
+    const POLL_MS = 30000;
+    const STALE_MS = 60000;
 
-		// Swipe state
-		swipedCard: null,
-		touchStartX: 0,
-		touchCurrentX: 0,
-		swipeThreshold: 60,
+    return {
+        groups: [],
+        filteredGroups: [],
+        searchTerm: '',
+        loading: true,
+        toasts: [],
 
-		init() {
-			this.loadFromLocalStorage();
-			this.filteredGroups = [...this.groups];
+        // modals
+        showAddModal: false,
+        showConfirmModal: false,
+        confirmMsg: '',
+        confirmAction: null,
 
-			this.fetchAllArrivals().then(() => {
-				this.loading = false;
-			});
+        // form
+        form: { service: '', stopNumber: '', name: '', groupName: '', newGroupName: '' },
 
-			this.$el.addEventListener('update-arrivals', (event) => {
-				const { groupIndex, shortcutIndex, arrivals, fetchedAt } = event.detail;
-				if (this.groups[groupIndex] && this.groups[groupIndex].shortcuts[shortcutIndex]) {
-					this.groups[groupIndex].shortcuts[shortcutIndex].arrivals = arrivals;
-					this.groups[groupIndex].shortcuts[shortcutIndex].lastFetched = fetchedAt;
-				}
-			});
+        // swipe
+        swiped: null,
+        _touchTarget: null,
+        _touchStartX: 0,
+        _touchCurX: 0,
+        _swipeThreshold: 60,
+        _pollTimer: null,
+        _toastId: 0,
 
-			this.pollInterval = setInterval(() => {
-				this.fetchAllArrivals();
-			}, 30000);
-		},
+        init() {
+            this._load();
+            this.filteredGroups = [...this.groups];
+            this._fetchAll().then(() => { this.loading = false; });
+            this.$el.addEventListener('update-arrivals', e => {
+                const { groupIndex, shortcutIndex, arrivals, fetchedAt } = e.detail;
+                const s = this.groups[groupIndex]?.shortcuts[shortcutIndex];
+                if (s) { s.arrivals = arrivals; s.lastFetched = fetchedAt; }
+            });
+            this._pollTimer = setInterval(() => this._fetchAll(), POLL_MS);
+        },
 
-		destroy() {
-			if (this.pollInterval) clearInterval(this.pollInterval);
-		},
+        destroy() { clearInterval(this._pollTimer); },
 
-		loadFromLocalStorage() {
-			const savedData = localStorage.getItem('busAppData');
-			if (savedData) {
-				try {
-					this.groups = JSON.parse(savedData);
-				} catch {
-					this.groups = [];
-				}
-			}
-			for (const group of this.groups) {
-				for (const s of group.shortcuts) {
-					if (!s.arrivals) s.arrivals = [null, null, null];
-					if (!s.lastFetched) s.lastFetched = 0;
-				}
-			}
-		},
+        // ── Persistence ──
+        _load() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (raw) this.groups = JSON.parse(raw);
+            } catch { this.groups = []; }
+            for (const g of this.groups) {
+                for (const s of g.shortcuts) {
+                    if (!s.arrivals) s.arrivals = [null, null, null];
+                    s.lastFetched ??= 0;
+                }
+            }
+        },
 
-		saveToLocalStorage() {
-			const dataToSave = this.groups.map(group => ({
-				name: group.name,
-				shortcuts: group.shortcuts.map(s => ({
-					service: s.service,
-					stopNumber: s.stopNumber,
-					name: s.name
-				}))
-			}));
-			localStorage.setItem('busAppData', JSON.stringify(dataToSave));
-		},
+        _save() {
+            const data = this.groups.map(g => ({
+                name: g.name,
+                shortcuts: g.shortcuts.map(s => ({ service: s.service, stopNumber: s.stopNumber, name: s.name }))
+            }));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        },
 
-		filterGroups() {
-			this.closeSwipe();
-			if (!this.searchTerm) {
-				this.filteredGroups = [...this.groups];
-				return;
-			}
-			const term = this.searchTerm.toLowerCase();
-			this.filteredGroups = this.groups.reduce((acc, group) => {
-				const matchingShortcuts = group.shortcuts.filter(s =>
-					s.name.toLowerCase().includes(term) ||
-					s.service.includes(term) ||
-					s.stopNumber.includes(term)
-				);
-				if (group.name.toLowerCase().includes(term) || matchingShortcuts.length > 0) {
-					acc.push({
-						...group,
-						shortcuts: matchingShortcuts.length > 0 ? matchingShortcuts : group.shortcuts
-					});
-				}
-				return acc;
-			}, []);
-		},
+        // ── Search ──
+        filter() {
+            this._closeSwipe();
+            const t = this.searchTerm.toLowerCase().trim();
+            if (!t) { this.filteredGroups = [...this.groups]; return; }
+            this.filteredGroups = this.groups.reduce((acc, g) => {
+                const matches = g.shortcuts.filter(s =>
+                    s.name.toLowerCase().includes(t) ||
+                    s.service.includes(t) ||
+                    s.stopNumber.includes(t)
+                );
+                if (g.name.toLowerCase().includes(t) || matches.length) {
+                    acc.push({ ...g, shortcuts: matches.length ? matches : g.shortcuts });
+                }
+                return acc;
+            }, []);
+        },
 
-		addShortcut() {
-			this.closeSwipe();
-			if (!this.newShortcut.service || !this.newShortcut.stopNumber) {
-				this.showToast('Please enter both bus service and stop number', 'error');
-				return;
-			}
+        // ── Add ──
+        add() {
+            this._closeSwipe();
+            const f = this.form;
+            if (!f.service || !f.stopNumber) { this._toast('Fill in both service and stop number', 'error'); return; }
 
-			let groupName = this.newShortcut.groupName;
-			if (groupName === 'new') {
-				if (!this.newShortcut.newGroupName) {
-					this.showToast('Please enter a name for the new group', 'error');
-					return;
-				}
-				groupName = this.newShortcut.newGroupName;
-				if (!this.groups.some(g => g.name === groupName)) {
-					this.groups.push({ name: groupName, shortcuts: [] });
-				}
-			}
+            let groupName = f.groupName;
+            if (groupName === '__new') {
+                if (!f.newGroupName.trim()) { this._toast('Enter a group name', 'error'); return; }
+                groupName = f.newGroupName.trim();
+                if (!this.groups.some(g => g.name === groupName)) {
+                    this.groups.push({ name: groupName, shortcuts: [] });
+                }
+            }
+            if (!groupName) { this._toast('Select a group', 'error'); return; }
 
-			if (!groupName) {
-				this.showToast('Please select a group', 'error');
-				return;
-			}
+            const group = this.groups.find(g => g.name === groupName);
+            if (!group) { this._toast('Group not found', 'error'); return; }
 
-			const group = this.groups.find(g => g.name === groupName);
-			if (group) {
-				const duplicate = group.shortcuts.find(s =>
-					s.service === this.newShortcut.service &&
-					s.stopNumber === this.newShortcut.stopNumber
-				);
-				if (duplicate) {
-					this.showToast('This bus service and stop already exists in this group', 'error');
-					return;
-				}
-			}
+            if (group.shortcuts.some(s => s.service === f.service && s.stopNumber === f.stopNumber)) {
+                this._toast('Already exists in this group', 'error'); return;
+            }
 
-			const shortcut = {
-				service: this.newShortcut.service,
-				stopNumber: this.newShortcut.stopNumber,
-				name: this.newShortcut.name || `Bus ${this.newShortcut.service} - Stop ${this.newShortcut.stopNumber}`,
-				arrivals: [null, null, null],
-				lastFetched: 0
-			};
+            const shortcut = {
+                service: f.service,
+                stopNumber: f.stopNumber,
+                name: f.name.trim() || `Bus ${f.service} - Stop ${f.stopNumber}`,
+                arrivals: [null, null, null],
+                lastFetched: 0
+            };
+            group.shortcuts.push(shortcut);
+            const gi = this.groups.indexOf(group);
+            const si = group.shortcuts.length - 1;
 
-			if (group) {
-				group.shortcuts.push(shortcut);
-			}
+            this._save();
+            this.showAddModal = false;
+            this._resetForm();
+            this.filteredGroups = [...this.groups];
+            this._toast('Shortcut added', 'success');
+            this._fetchOne(shortcut, gi, si);
+        },
 
-			const groupIndex = this.groups.findIndex(g => g.name === groupName);
-			const shortcutIndex = group.shortcuts.length - 1;
+        _resetForm() {
+            this.form = { service: '', stopNumber: '', name: '', groupName: '', newGroupName: '' };
+        },
 
-			this.saveToLocalStorage();
-			this.showAddModal = false;
-			this.resetForm();
-			this.filteredGroups = [...this.groups];
-			this.showToast('Shortcut added', 'success');
+        // ── Delete ──
+        deleteShortcut(fgi, fsi) {
+            this._closeSwipe();
+            const s = this.filteredGroups[fgi]?.shortcuts[fsi];
+            if (!s) return;
+            for (const g of this.groups) {
+                const idx = g.shortcuts.indexOf(s);
+                if (idx !== -1) {
+                    g.shortcuts.splice(idx, 1);
+                    if (!g.shortcuts.length) this.groups.splice(this.groups.indexOf(g), 1);
+                    break;
+                }
+            }
+            this._save();
+            this.filteredGroups = [...this.groups];
+            this._toast('Shortcut deleted', 'success');
+        },
 
-			this.fetchArrivalTime(shortcut, groupIndex, shortcutIndex);
-		},
+        askDeleteGroup(gi) {
+            this.confirmMsg = `Delete group "${this.groups[gi].name}" and all its shortcuts?`;
+            this.confirmAction = () => {
+                this.groups.splice(gi, 1);
+                this._save();
+                this.filteredGroups = [...this.groups];
+                this.showConfirmModal = false;
+                this.confirmAction = null;
+                this._toast('Group deleted', 'success');
+            };
+            this.showConfirmModal = true;
+        },
 
-		resetForm() {
-			this.newShortcut = {
-				service: '',
-				stopNumber: '',
-				name: '',
-				groupName: '',
-				newGroupName: ''
-			};
-		},
+        // ── Swipe ──
+        touchStart(e, gi, si) {
+            if (this.swiped && this.swiped.gi === gi && this.swiped.si === si) { this._closeSwipe(); return; }
+            this._closeSwipe();
+            this._touchTarget = { gi, si };
+            this._touchStartX = e.touches[0].clientX;
+            this._touchCurX = this._touchStartX;
+        },
+        touchMove(e) { this._touchCurX = e.touches[0].clientX; },
+        touchEnd() {
+            const diff = this._touchStartX - this._touchCurX;
+            const t = this._touchTarget;
+            this._touchTarget = null;
+            if (!t) return;
+            if (diff > this._swipeThreshold) this.swiped = t;
+            else if (diff < -this._swipeThreshold) this._closeSwipe();
+        },
+        _closeSwipe() {
+            this.swiped = null;
+            this._touchTarget = null;
+            this._touchStartX = this._touchCurX = 0;
+        },
 
-		// Swipe handlers
-		onTouchStart(event, groupIndex, shortcutIndex) {
-			if (this.swipedCard &&
-				this.swipedCard.group === groupIndex &&
-				this.swipedCard.shortcut === shortcutIndex) {
-				this.closeSwipe();
-				return;
-			}
-			this.closeSwipe();
-			this._touchTarget = { group: groupIndex, shortcut: shortcutIndex };
-			this.touchStartX = event.touches[0].clientX;
-			this.touchCurrentX = this.touchStartX;
-		},
+        // ── Arrivals ──
+        arrivalClass(v) {
+            if (v == null) return '';
+            if (v <= 2) return 'urgent';
+            if (v <= 8) return 'soon';
+            return 'later';
+        },
+        isStale(s) { return s.lastFetched && (Date.now() - s.lastFetched) > STALE_MS; },
 
-		onTouchMove(event) {
-			this.touchCurrentX = event.touches[0].clientX;
-		},
+        async _fetchAll() {
+            const jobs = [];
+            for (const [gi, g] of this.groups.entries()) {
+                for (const [si, s] of g.shortcuts.entries()) jobs.push(this._fetchOne(s, gi, si));
+            }
+            await Promise.allSettled(jobs);
+        },
 
-		onTouchEnd() {
-			const diff = this.touchStartX - this.touchCurrentX;
-			const target = this._touchTarget;
-			this._touchTarget = null;
+        async _fetchOne(s, gi, si) {
+            try {
+                const r = await fetch(`/api/v1/busArrival?BusStopCode=${s.stopNumber}&ServiceNo=${s.service}`);
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                const data = await r.json();
+                const arrivals = Array.isArray(data) && data.length >= 3 ? data : [null, null, null];
+                this.$dispatch('update-arrivals', { groupIndex: gi, shortcutIndex: si, arrivals, fetchedAt: Date.now() });
+            } catch {
+                this.$dispatch('update-arrivals', { groupIndex: gi, shortcutIndex: si, arrivals: [null, null, null], fetchedAt: Date.now() });
+            }
+        },
 
-			if (!target) return;
+        // ── Import / Export ──
+        exportData() {
+            const a = document.createElement('a');
+            a.href = 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(this.groups, null, 2));
+            a.download = 'bus_shortcuts.json';
+            a.click();
+            this._toast('Exported', 'success');
+        },
 
-			if (diff > this.swipeThreshold) {
-				this.swipedCard = target;
-			} else if (diff < -this.swipeThreshold) {
-				this.closeSwipe();
-			} else {
-				// Small or no movement — leave current state as-is
-			}
-		},
+        importData(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = ev => {
+                try {
+                    const data = JSON.parse(ev.target.result);
+                    if (!Array.isArray(data)) { this._toast('Invalid: expected array', 'error'); return; }
+                    for (const g of data) {
+                        if (!g || typeof g.name !== 'string' || !Array.isArray(g.shortcuts)) {
+                            this._toast('Invalid group format', 'error'); return;
+                        }
+                        for (const s of g.shortcuts) {
+                            if (!s?.service || !s?.stopNumber) { this._toast('Invalid shortcut format', 'error'); return; }
+                            s.arrivals = [null, null, null];
+                            s.lastFetched = 0;
+                        }
+                    }
+                    this.groups = data;
+                    this._save();
+                    this.filteredGroups = [...this.groups];
+                    this.loading = true;
+                    this._fetchAll().then(() => { this.loading = false; });
+                    this._toast('Imported', 'success');
+                } catch { this._toast('Could not parse file', 'error'); }
+            };
+            reader.readAsText(file);
+        },
 
-		closeSwipe() {
-			this.swipedCard = null;
-			this._touchTarget = null;
-			this.touchStartX = 0;
-			this.touchCurrentX = 0;
-		},
+        // ── Toast ──
+        _toast(msg, type) {
+            const id = ++this._toastId;
+            this.toasts.push({ id, msg, type });
+            setTimeout(() => { this.toasts = this.toasts.filter(t => t.id !== id); }, 3000);
+        },
 
-		deleteShortcutNow(filteredGroupIndex, filteredShortcutIndex) {
-			this.closeSwipe();
-
-			const filtered = this.filteredGroups[filteredGroupIndex];
-			if (!filtered) return;
-			const shortcut = filtered.shortcuts[filteredShortcutIndex];
-			if (!shortcut) return;
-
-			for (const group of this.groups) {
-				const idx = group.shortcuts.indexOf(shortcut);
-				if (idx !== -1) {
-					group.shortcuts.splice(idx, 1);
-					if (group.shortcuts.length === 0) {
-						this.groups.splice(this.groups.indexOf(group), 1);
-					}
-					break;
-				}
-			}
-
-			this.saveToLocalStorage();
-			this.filteredGroups = [...this.groups];
-			this.showToast('Shortcut deleted', 'success');
-		},
-
-		// Group deletion with confirmation
-		deleteGroup(groupIndex) {
-			this.itemToDelete = groupIndex;
-			const groupName = this.groups[groupIndex].name;
-			this.confirmMessage = `Delete the group "${groupName}" and all its shortcuts?`;
-			this.showConfirmModal = true;
-		},
-
-		confirmDelete() {
-			this.closeSwipe();
-			const groupIndex = this.itemToDelete;
-			this.groups.splice(groupIndex, 1);
-			this.saveToLocalStorage();
-			this.filteredGroups = [...this.groups];
-			this.showConfirmModal = false;
-			this.itemToDelete = null;
-			this.showToast('Group deleted', 'success');
-		},
-
-		// Arrival styling
-		isStale(shortcut) {
-			return shortcut.lastFetched && (Date.now() - shortcut.lastFetched) > 60000;
-		},
-
-		arrivalClass(minutes, position) {
-			if (minutes == null) return '';
-			if (minutes <= 2) return 'urgent';
-			if (minutes <= 8) return 'soon';
-			return 'later';
-		},
-
-		exportData() {
-			const dataStr = JSON.stringify(this.groups, null, 2);
-			const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
-			const a = document.createElement('a');
-			a.setAttribute('href', dataUri);
-			a.setAttribute('download', 'bus_shortcuts.json');
-			a.click();
-			this.showToast('Data exported', 'success');
-		},
-
-		importData(event) {
-			const file = event.target.files[0];
-			if (!file) return;
-			const reader = new FileReader();
-			reader.onload = (e) => {
-				try {
-					const importedData = JSON.parse(e.target.result);
-					if (!Array.isArray(importedData)) {
-						this.showToast('Invalid format. Expected a JSON array.', 'error');
-						return;
-					}
-					for (const group of importedData) {
-						if (!group || typeof group.name !== 'string' || !Array.isArray(group.shortcuts)) {
-							this.showToast('Invalid format: each group must have name and shortcuts.', 'error');
-							return;
-						}
-						for (const s of group.shortcuts) {
-							if (!s || !s.service || !s.stopNumber) {
-								this.showToast('Invalid format: each shortcut must have service and stopNumber.', 'error');
-								return;
-							}
-							s.arrivals = [null, null, null];
-							s.lastFetched = 0;
-						}
-					}
-					this.groups = importedData;
-					this.saveToLocalStorage();
-					this.filteredGroups = [...this.groups];
-					this.loading = true;
-					this.fetchAllArrivals().then(() => { this.loading = false; });
-					this.showToast('Data imported', 'success');
-				} catch {
-					this.showToast('Error parsing file.', 'error');
-				}
-			};
-			reader.readAsText(file);
-		},
-
-		showToast(message, type = 'info') {
-			const id = ++this.toastId;
-			this.toasts.push({ id, message, type });
-			setTimeout(() => {
-				this.toasts = this.toasts.filter(toast => toast.id !== id);
-			}, 3000);
-		},
-
-		async fetchAllArrivals() {
-			const promises = [];
-			for (const [groupIndex, group] of this.groups.entries()) {
-				for (const [shortcutIndex, shortcut] of group.shortcuts.entries()) {
-					promises.push(this.fetchArrivalTime(shortcut, groupIndex, shortcutIndex));
-				}
-			}
-			await Promise.allSettled(promises);
-		},
-
-		async fetchArrivalTime(shortcut, groupIndex, shortcutIndex) {
-			try {
-				const response = await fetch(
-					`/api/v1/busArrival?BusStopCode=${shortcut.stopNumber}&ServiceNo=${shortcut.service}`,
-					{ method: 'GET', headers: { 'Content-Type': 'application/json' } }
-				);
-
-				if (!response.ok) {
-					throw new Error(`API request failed with status ${response.status}`);
-				}
-
-				const data = await response.json();
-
-				let arrivals;
-				if (Array.isArray(data) && data.length >= 3) {
-					arrivals = data;
-				} else {
-					arrivals = [null, null, null];
-				}
-
-				this.$dispatch('update-arrivals', {
-					groupIndex,
-					shortcutIndex,
-					arrivals,
-					fetchedAt: Date.now()
-				});
-
-			} catch (error) {
-				console.error('Error fetching arrival time:', error);
-				this.$dispatch('update-arrivals', {
-					groupIndex,
-					shortcutIndex,
-					arrivals: [null, null, null],
-					fetchedAt: Date.now()
-				});
-				this.showToast(`Error fetching Bus ${shortcut.service} at Stop ${shortcut.stopNumber}`, 'error');
-			}
-		}
-	}
+        // ── Helpers ──
+        onlyDigits(e) { e.target.value = e.target.value.replace(/[^0-9]/g, ''); },
+    };
 }

@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>yabata</title>
     <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAQAAEABAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAMz/AGnd+gD8/v8ACgoKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEREREAAAAAEERERFAAAAEESIiIRQAAAQSREQiFAAABBIxEUIUAAAEEjERQhQAAAQSMRFCFAAABBIxEUIUAAAEEjERQhQAAAQSMRFCFAAABBIxEUIUAAAEEjERQhQAAAQRIzQhFAAAAEERERFAAAAABBERFAAAAAAARERAAAD4DwAA8AcAAOADAADgAwAA4AMAAOADAADgAwAA4AMAAOADAADgAwAA4AMAAOADAADgAwAA8AcAAPgPAAD8HwAA">
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
@@ -13,21 +13,45 @@
 
 <div class="container" x-data="busApp()"
     x-effect="document.body.classList.toggle('modal-open', showAddModal || showConfirmModal)"
-    @keydown.escape.window="showAddModal = false; showConfirmModal = false; _closeSwipe()">
+    @keydown.escape.window="showAddModal = false; showConfirmModal = false; _closeSwipe()"
+    @keydown.ctrl.k.window.prevent="$refs.searchInput.focus()">
 
     <!-- Header -->
-    <div class="header">
-        <div class="header-title"><i class="fas fa-bus"></i> yabata</div>
-        <button class="btn btn-primary" @click="showAddModal = true">
-            <i class="fas fa-plus"></i> Add
+    <header class="header">
+        <div class="header-left">
+            <span class="logo"><i class="fas fa-bus"></i></span>
+            <span class="app-name">yabata</span>
+        </div>
+        <div class="header-actions">
+            <button class="btn-icon" @click="toggleTheme()" :aria-label="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'">
+                <i class="fas" :class="theme === 'dark' ? 'fa-sun' : 'fa-moon'"></i>
+            </button>
+            <button class="btn btn-primary" @click="showAddModal = true">
+                <i class="fas fa-plus"></i> <span>Add</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Search -->
+    <div class="search-wrap" x-show="groups.length > 0 || searchTerm">
+        <i class="fas fa-search search-icon"></i>
+        <input type="text" x-ref="searchInput" placeholder="Search shortcuts..." x-model="searchTerm" @input="filter">
+        <span class="search-hint" x-show="!searchTerm">Ctrl+K</span>
+        <button class="search-clear" x-show="searchTerm" @click="searchTerm = ''; filter()">
+            <i class="fas fa-times"></i>
         </button>
     </div>
 
-    <!-- Search -->
-    <div class="search-wrap" x-show="groups.length > 0">
-        <input type="text" placeholder="Search services, stops, names..." x-model="searchTerm" @input="filter">
-        <button @click="filter"><i class="fas fa-search"></i></button>
-    </div>
+    <!-- Loading skeletons -->
+    <template x-if="loading && groups.length === 0">
+        <div class="skeletons">
+            <div class="sk-group"><div class="sk-name"></div></div>
+            <div class="sk-card"><div class="sk-service"></div><div class="sk-arrivals"><div></div><div></div><div></div></div></div>
+            <div class="sk-card"><div class="sk-service"></div><div class="sk-arrivals"><div></div><div></div><div></div></div></div>
+            <div class="sk-group"><div class="sk-name short"></div></div>
+            <div class="sk-card"><div class="sk-service"></div><div class="sk-arrivals"><div></div><div></div><div></div></div></div>
+        </div>
+    </template>
 
     <!-- Groups & Cards -->
     <template x-for="(group, gi) in filteredGroups" :key="gi">
@@ -41,35 +65,33 @@
 
             <template x-for="(s, si) in group.shortcuts" :key="si">
                 <div class="card-outer" :class="{ swiped: swiped && swiped.gi === gi && swiped.si === si }">
-                    <!-- Swipe background -->
                     <div class="card-swipe-bg" @click.stop="deleteShortcut(gi, si)">
                         <i class="fas fa-trash"></i> Delete
                     </div>
-                    <!-- Card -->
                     <div class="card" :class="{ stale: isStale(s) }"
                         @touchstart.passive="touchStart($event, gi, si)"
                         @touchmove="touchMove($event)"
                         @touchend="touchEnd()">
-                        <!-- Desktop delete -->
-                        <button class="card-del-desktop" @click.stop="deleteShortcut(gi, si)" title="Delete">
+                        <button class="card-del" @click.stop="deleteShortcut(gi, si)" title="Delete">
                             <i class="fas fa-times"></i>
                         </button>
-                        <!-- Top row: service + arrivals -->
                         <div class="card-row">
                             <span class="card-service" x-text="s.service"></span>
                             <div class="arrivals">
                                 <span class="arrival" :class="arrivalClass(s.arrivals[0])"
-                                    x-text="s.arrivals[0] != null ? s.arrivals[0] + ' min' : '--'"></span>
+                                    x-text="s.arrivals[0] != null ? s.arrivals[0] + 'm' : '--'"></span>
                                 <span class="arrival" :class="arrivalClass(s.arrivals[1])"
-                                    x-text="s.arrivals[1] != null ? s.arrivals[1] + ' min' : '--'"></span>
+                                    x-text="s.arrivals[1] != null ? s.arrivals[1] + 'm' : '--'"></span>
                                 <span class="arrival" :class="arrivalClass(s.arrivals[2])"
-                                    x-text="s.arrivals[2] != null ? s.arrivals[2] + ' min' : '--'"></span>
+                                    x-text="s.arrivals[2] != null ? s.arrivals[2] + 'm' : '--'"></span>
                             </div>
                         </div>
-                        <!-- Bottom row: name + stop -->
                         <div class="card-meta">
                             <span x-text="s.name || 'Unnamed'"></span>
-                            <span class="sep" x-text="'· Stop ' + s.stopNumber"></span>
+                            <span class="sep">·</span>
+                            <span x-text="'Stop ' + s.stopNumber"></span>
+                            <span class="sep" x-show="s.lastFetched">·</span>
+                            <span class="updated" x-show="s.lastFetched" x-text="relativeTime(s.lastFetched)"></span>
                         </div>
                     </div>
                 </div>
@@ -77,34 +99,42 @@
         </div>
     </template>
 
-    <!-- Empty / Loading -->
+    <!-- Empty (no data ever saved) -->
     <div class="empty-state" x-show="groups.length === 0 && !loading">
-        <i class="fas fa-bus"></i>
-        <p>No shortcuts yet — tap Add to get started.</p>
+        <div class="empty-icon"><i class="fas fa-bus"></i></div>
+        <h2>No shortcuts yet</h2>
+        <p>Add a bus service and stop number to start tracking arrivals.</p>
+        <button class="btn btn-primary" @click="showAddModal = true">
+            <i class="fas fa-plus"></i> Add your first
+        </button>
     </div>
-    <div class="loading-state" x-show="loading">
-        <i class="fas fa-spinner fa-spin"></i>
-        <p>Loading arrival times...</p>
+
+    <!-- Empty (filtered to nothing) -->
+    <div class="empty-state" x-show="groups.length > 0 && filteredGroups.length === 0 && !loading">
+        <div class="empty-icon"><i class="fas fa-search"></i></div>
+        <p>No shortcuts match "<span x-text="searchTerm"></span>"</p>
     </div>
 
     <!-- Footer -->
-    <div class="footer" x-show="groups.length > 0">
+    <footer class="footer" x-show="groups.length > 0">
         <button @click="_fetchAll()"><i class="fas fa-sync-alt"></i> Refresh</button>
         <button @click="exportData()"><i class="fas fa-download"></i> Export</button>
         <button @click="$refs.importFile.click()"><i class="fas fa-upload"></i> Import</button>
         <input type="file" x-ref="importFile" @change="importData" accept=".json" hidden>
-    </div>
+    </footer>
 
     <!-- Toasts -->
     <div class="toast-container">
         <template x-for="t in toasts" :key="t.id">
-            <div class="toast" :class="t.type" x-text="t.msg"></div>
+            <div class="toast" :class="t.type">
+                <i class="fas" :class="t.type === 'success' ? 'fa-check-circle' : t.type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'"></i>
+                <span x-text="t.msg"></span>
+            </div>
         </template>
     </div>
 
     <!-- Add Modal -->
-    <div class="modal-backdrop" x-show="showAddModal" x-cloak
-        @click.self="showAddModal = false">
+    <div class="modal-backdrop" x-show="showAddModal" x-cloak @click.self="showAddModal = false">
         <div class="modal-sheet">
             <div class="modal-head">
                 <h2>Add Shortcut</h2>
@@ -112,16 +142,16 @@
             </div>
             <div class="modal-body">
                 <div class="field">
-                    <label>Bus Service</label>
-                    <input type="text" x-model="form.service" @input="onlyDigits" placeholder="e.g. 188">
+                    <label>Bus Service Number</label>
+                    <input type="text" x-model="form.service" @input="onlyDigits" placeholder="e.g. 188" autocomplete="off">
                 </div>
                 <div class="field">
                     <label>Bus Stop Number</label>
-                    <input type="text" x-model="form.stopNumber" @input="onlyDigits" placeholder="e.g. 43219">
+                    <input type="text" x-model="form.stopNumber" @input="onlyDigits" placeholder="e.g. 43219" autocomplete="off">
                 </div>
                 <div class="field">
-                    <label>Name (optional)</label>
-                    <input type="text" x-model="form.name" placeholder="e.g. Home to Office">
+                    <label>Label <span class="field-optional">optional</span></label>
+                    <input type="text" x-model="form.name" placeholder="e.g. Home to Office" autocomplete="off">
                 </div>
                 <div class="field">
                     <label>Group</label>
@@ -135,10 +165,10 @@
                 </div>
                 <div class="field" x-show="form.groupName === '__new'">
                     <label>New Group Name</label>
-                    <input type="text" x-model="form.newGroupName" placeholder="e.g. Work Routes">
+                    <input type="text" x-model="form.newGroupName" placeholder="e.g. Work Routes" autocomplete="off">
                 </div>
                 <div class="modal-actions">
-                    <button class="btn btn-secondary" @click="showAddModal = false">Cancel</button>
+                    <button class="btn btn-ghost" @click="showAddModal = false">Cancel</button>
                     <button class="btn btn-primary" @click="add">Add Shortcut</button>
                 </div>
             </div>
@@ -146,17 +176,16 @@
     </div>
 
     <!-- Confirm Modal -->
-    <div class="modal-backdrop" x-show="showConfirmModal" x-cloak
-        @click.self="showConfirmModal = false">
+    <div class="modal-backdrop" x-show="showConfirmModal" x-cloak @click.self="showConfirmModal = false">
         <div class="modal-sheet">
             <div class="modal-head">
                 <h2>Delete Group</h2>
                 <button class="modal-close" @click="showConfirmModal = false">&times;</button>
             </div>
             <div class="modal-body">
-                <p x-text="confirmMsg" style="margin-bottom: 4px;"></p>
+                <p class="confirm-msg" x-text="confirmMsg"></p>
                 <div class="modal-actions">
-                    <button class="btn btn-secondary" @click="showConfirmModal = false">Cancel</button>
+                    <button class="btn btn-ghost" @click="showConfirmModal = false">Cancel</button>
                     <button class="btn btn-danger" @click="confirmAction()">Delete</button>
                 </div>
             </div>

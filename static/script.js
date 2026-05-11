@@ -1,5 +1,6 @@
 function busApp() {
     const STORAGE_KEY = 'busAppData';
+    const THEME_KEY = 'busAppTheme';
     const POLL_MS = 30000;
     const STALE_MS = 60000;
 
@@ -9,6 +10,7 @@ function busApp() {
         searchTerm: '',
         loading: true,
         toasts: [],
+        theme: 'light',
 
         // modals
         showAddModal: false,
@@ -27,8 +29,10 @@ function busApp() {
         _swipeThreshold: 60,
         _pollTimer: null,
         _toastId: 0,
+        _failCount: {},
 
         init() {
+            this._loadTheme();
             this._load();
             this.filteredGroups = [...this.groups];
             this._fetchAll().then(() => { this.loading = false; });
@@ -41,6 +45,19 @@ function busApp() {
         },
 
         destroy() { clearInterval(this._pollTimer); },
+
+        // ── Theme ──
+        _loadTheme() {
+            const saved = localStorage.getItem(THEME_KEY);
+            this.theme = saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            document.documentElement.setAttribute('data-theme', this.theme);
+        },
+
+        toggleTheme() {
+            this.theme = this.theme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', this.theme);
+            localStorage.setItem(THEME_KEY, this.theme);
+        },
 
         // ── Persistence ──
         _load() {
@@ -191,6 +208,15 @@ function busApp() {
         },
         isStale(s) { return s.lastFetched && (Date.now() - s.lastFetched) > STALE_MS; },
 
+        relativeTime(ts) {
+            const sec = Math.floor((Date.now() - ts) / 1000);
+            if (sec < 5) return 'just now';
+            if (sec < 60) return `${sec}s ago`;
+            const min = Math.floor(sec / 60);
+            if (min < 60) return `${min}m ago`;
+            return `${Math.floor(min / 60)}h ago`;
+        },
+
         async _fetchAll() {
             const jobs = [];
             for (const [gi, g] of this.groups.entries()) {
@@ -200,14 +226,20 @@ function busApp() {
         },
 
         async _fetchOne(s, gi, si) {
+            const key = `${s.service}-${s.stopNumber}`;
             try {
                 const r = await fetch(`/api/v1/busArrival?BusStopCode=${s.stopNumber}&ServiceNo=${s.service}`);
                 if (!r.ok) throw new Error(`HTTP ${r.status}`);
                 const data = await r.json();
                 const arrivals = Array.isArray(data) && data.length >= 3 ? data : [null, null, null];
                 this.$dispatch('update-arrivals', { groupIndex: gi, shortcutIndex: si, arrivals, fetchedAt: Date.now() });
+                this._failCount[key] = 0;
             } catch {
                 this.$dispatch('update-arrivals', { groupIndex: gi, shortcutIndex: si, arrivals: [null, null, null], fetchedAt: Date.now() });
+                this._failCount[key] = (this._failCount[key] || 0) + 1;
+                if (this._failCount[key] === 3) {
+                    this._toast(`Cannot reach server for ${s.service}`, 'error');
+                }
             }
         },
 

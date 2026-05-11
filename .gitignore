@@ -26,8 +26,9 @@ tmp/
 .env
 
 # Project build
-main
+yabatasg
 *templ.go
 
 # OS X generated file
 .DS_Store
+CLAUDE.md

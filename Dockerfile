@@ -1,15 +1,21 @@
-FROM golang:1.25-alpine
+FROM golang:1.25-alpine AS build
 
 WORKDIR /app
 
-COPY go.mod ./
-COPY go.sum ./
+COPY go.mod go.sum ./
 RUN go mod download
 
-COPY . ./
+COPY . .
+RUN go build -o /yabatasg .
 
-RUN go build -o /yabatasg main.go
+FROM alpine:3.21
 
-#EXPOSE 8080
+RUN adduser -D -H appuser
 
-CMD [ "/yabatasg" ]
+COPY --from=build /yabatasg /yabatasg
+
+EXPOSE 8080
+
+USER appuser
+
+CMD ["/yabatasg"]

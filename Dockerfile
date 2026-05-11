@@ -10,13 +10,10 @@ RUN go build -o /yabatasg .
 
 FROM alpine:3.21
 
-ARG UID=1000
-RUN adduser -D -H -u ${UID} appuser && mkdir -p /data && chown appuser /data
+RUN mkdir -p /data
 
 COPY --from=build /yabatasg /yabatasg
 
 EXPOSE 8080
-
-USER appuser
 
 CMD ["/yabatasg"]

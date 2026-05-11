@@ -28,8 +28,7 @@ func main() {
 	slog.SetDefault(logger)
 
 	if err := godotenv.Load(); err != nil {
-		slog.Error("Error loading .env file", "error", err)
-		os.Exit(1)
+		slog.Warn("No .env file found, using environment variables", "error", err)
 	}
 
 	staticFS, err := fs.Sub(staticFiles, "static")

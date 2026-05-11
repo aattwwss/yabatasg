@@ -2,7 +2,6 @@ package store
 
 import (
 	"math"
-	"os"
 	"testing"
 )
 
@@ -29,10 +28,7 @@ func TestHaversine(t *testing.T) {
 }
 
 func TestStoreNearby(t *testing.T) {
-	dbPath := "test_nearby.db"
-	defer os.Remove(dbPath)
-
-	s, err := New(dbPath)
+	s, err := New(":memory:")
 	if err != nil {
 		t.Fatalf("failed to open store: %v", err)
 	}
@@ -82,10 +78,7 @@ func TestStoreNearby(t *testing.T) {
 }
 
 func TestStoreNearbyLimit(t *testing.T) {
-	dbPath := "test_limit.db"
-	defer os.Remove(dbPath)
-
-	s, err := New(dbPath)
+	s, err := New(":memory:")
 	if err != nil {
 		t.Fatalf("failed to open store: %v", err)
 	}
@@ -109,10 +102,7 @@ func TestStoreNearbyLimit(t *testing.T) {
 }
 
 func TestLastSynced(t *testing.T) {
-	dbPath := "test_synced.db"
-	defer os.Remove(dbPath)
-
-	s, err := New(dbPath)
+	s, err := New(":memory:")
 	if err != nil {
 		t.Fatalf("failed to open store: %v", err)
 	}

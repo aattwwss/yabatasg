@@ -2,7 +2,6 @@ package syncer
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -26,10 +25,7 @@ func (m *mockClient) GetBusStops(ctx context.Context, skip int) (*lta.Response[l
 }
 
 func TestSyncNow(t *testing.T) {
-	dbPath := "test_syncer.db"
-	defer os.Remove(dbPath)
-
-	s, err := store.New(dbPath)
+	s, err := store.New(":memory:")
 	if err != nil {
 		t.Fatalf("failed to open store: %v", err)
 	}
@@ -65,10 +61,7 @@ func TestSyncNow(t *testing.T) {
 }
 
 func TestSyncNowPagination(t *testing.T) {
-	dbPath := "test_sync_pages.db"
-	defer os.Remove(dbPath)
-
-	s, err := store.New(dbPath)
+	s, err := store.New(":memory:")
 	if err != nil {
 		t.Fatalf("failed to open store: %v", err)
 	}

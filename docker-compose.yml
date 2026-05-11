@@ -1,7 +1,11 @@
 services:
-  ssd-bot-go:
+  yabatasg:
     container_name: yabatasg
-    image: 'yabatasg:latest'
+    build: .
     restart: unless-stopped
+    ports:
+      - "8080:8080"
     env_file:
       - .env
+    volumes:
+      - ./yabatasg.db:/yabatasg.db

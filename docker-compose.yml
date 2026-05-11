@@ -8,4 +8,4 @@ services:
     env_file:
       - .env
     volumes:
-      - ./yabatasg.db:/yabatasg.db
+      - ./data:/data

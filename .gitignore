@@ -27,6 +27,7 @@ tmp/
 
 # Project build
 yabatasg
+data/
 *templ.go
 
 # OS X generated file

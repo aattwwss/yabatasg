@@ -42,7 +42,7 @@ func main() {
 
 	dbPath := os.Getenv("DB_PATH")
 	if dbPath == "" {
-		dbPath = "yabatasg.db"
+		dbPath = "data/yabatasg.db"
 	}
 
 	stopsStore, err := store.New(dbPath)

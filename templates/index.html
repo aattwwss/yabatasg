@@ -14,74 +14,83 @@
 
 <body>
 
-	<div class="container" x-data="busApp()" @keydown.escape.window="showAddModal = false; showConfirmModal = false" x-effect="document.body.classList.toggle('modal-open', showAddModal || showConfirmModal)">
+	<div class="container" x-data="busApp()"
+		@keydown.escape.window="showAddModal = false; showConfirmModal = false; closeSwipe()"
+		x-effect="document.body.classList.toggle('modal-open', showAddModal || showConfirmModal)">
+
 		<header>
 			<div class="logo">
 				<i class="fas fa-bus"></i>
 			</div>
-			<div class="controls">
-				<button class="btn btn-primary" @click="showAddModal = true">
-					<i class="fas fa-plus"></i> <span class="btn-text">Add</span>
-				</button>
-				<button class="btn btn-secondary" @click="exportData()">
-					<i class="fas fa-download"></i> <span class="btn-text">Export</span>
-				</button>
-				<button class="btn btn-secondary" @click="$refs.importFile.click()">
-					<i class="fas fa-upload"></i> <span class="btn-text">Import</span>
-					<input type="file" x-ref="importFile" @change="importData"
-						style="display: none;">
-				</button>
-				<button class="btn btn-secondary" @click="fetchAllArrivals()" x-show="!loading">
-					<i class="fas fa-sync-alt"></i> <span class="btn-text">Refresh</span>
-				</button>
-			</div>
+			<button class="btn btn-primary" @click="showAddModal = true">
+				<i class="fas fa-plus"></i> <span class="btn-text">Add</span>
+			</button>
 		</header>
 
 		<div class="search-bar" x-show="groups.length > 0">
-			<input type="text" placeholder="Search groups and shortcuts..." x-model="searchTerm" @input="filterGroups">
+			<input type="text" placeholder="Search..." x-model="searchTerm" @input="filterGroups">
 			<button @click="filterGroups"><i class="fas fa-search"></i></button>
 		</div>
 
 		<div class="groups-container">
 			<template x-for="(group, index) in filteredGroups" :key="index">
-				<div class="group-card">
-					<div class="group-header">
-						<h2 x-text="group.name"></h2>
-						<div class="group-actions">
-							<button class="action-btn delete-group-btn"
-								@click="deleteGroup(index)" title="Delete Group">
-								<i class="fas fa-x"></i>
-							</button>
-						</div>
+				<div class="group-section">
+					<div class="group-label">
+						<span x-text="group.name"></span>
+						<button class="group-delete-btn" @click="deleteGroup(index)"
+							title="Delete group">
+							<i class="fas fa-times"></i>
+						</button>
 					</div>
-					<div class="shortcuts-container">
-						<template x-for="(shortcut, idx) in group.shortcuts" :key="idx">
-							<div class="shortcut-row" @click="deleteShortcut(index, idx)">
-								<div class="shortcut-info">
-									<div class="shortcut-name" x-text="shortcut.name"></div>
-									<div class="bus-service" x-text="'Bus ' + shortcut.service"></div>
-									<div class="bus-stop" x-text="'Stop ' + shortcut.stopNumber"></div>
+
+					<template x-for="(shortcut, idx) in group.shortcuts" :key="idx">
+						<div class="card-wrapper"
+							:class="{ 'is-swiped': swipedCard && swipedCard.group === index && swipedCard.shortcut === idx }">
+							<div class="card-delete-zone"
+								@click.stop="deleteShortcutNow(index, idx)">
+								<i class="fas fa-trash"></i>
+								<span>Delete</span>
+							</div>
+							<div class="card"
+								:class="{ 'is-stale': isStale(shortcut) }"
+								@touchstart.passive="onTouchStart($event, index, idx)"
+								@touchmove="onTouchMove($event)"
+								@touchend="onTouchEnd($event)">
+								<button class="desktop-delete"
+									@click.stop="deleteShortcutNow(index, idx)"
+									title="Delete">
+									<i class="fas fa-times"></i>
+								</button>
+								<div class="card-main">
+									<span class="card-service" x-text="shortcut.service"></span>
+									<div class="arrivals">
+										<div class="arrival"
+											:class="arrivalClass(shortcut.arrivals[0], 0)"
+											x-text="shortcut.arrivals[0] != null ? shortcut.arrivals[0] + ' min' : '--'">
+										</div>
+										<div class="arrival"
+											:class="arrivalClass(shortcut.arrivals[1], 1)"
+											x-text="shortcut.arrivals[1] != null ? shortcut.arrivals[1] + ' min' : '--'">
+										</div>
+										<div class="arrival"
+											:class="arrivalClass(shortcut.arrivals[2], 2)"
+											x-text="shortcut.arrivals[2] != null ? shortcut.arrivals[2] + ' min' : '--'">
+										</div>
+									</div>
 								</div>
-								<div class="arrivals">
-									<div class="arrival next"
-										x-text="shortcut.arrivals[0] != null ? shortcut.arrivals[0] : '--'">
-									</div>
-									<div class="arrival upcoming"
-										x-text="shortcut.arrivals[1] != null ? shortcut.arrivals[1] : '--'">
-									</div>
-									<div class="arrival later"
-										x-text="shortcut.arrivals[2] != null ? shortcut.arrivals[2] : '--'">
-									</div>
+								<div class="card-details">
+									<span class="card-name" x-text="shortcut.name"></span>
+									<span class="card-stop" x-text="'Stop ' + shortcut.stopNumber"></span>
 								</div>
 							</div>
-						</template>
-					</div>
+						</div>
+					</template>
 				</div>
 			</template>
 
 			<div class="empty-state" x-show="groups.length === 0 && !loading">
 				<i class="fas fa-bus"></i>
-				<p>No bus shortcuts yet. Click Add to create one.</p>
+				<p>No shortcuts yet. Tap Add to get started.</p>
 			</div>
 
 			<div class="loading-state" x-show="loading">
@@ -90,7 +99,19 @@
 			</div>
 		</div>
 
-		<!-- Toast Container -->
+		<div class="footer-actions" x-show="groups.length > 0">
+			<button @click="fetchAllArrivals()">
+				<i class="fas fa-sync-alt"></i> <span>Refresh</span>
+			</button>
+			<button @click="exportData()">
+				<i class="fas fa-download"></i> <span>Export</span>
+			</button>
+			<button @click="$refs.importFile.click()">
+				<i class="fas fa-upload"></i> <span>Import</span>
+			</button>
+			<input type="file" x-ref="importFile" @change="importData" style="display: none;">
+		</div>
+
 		<div class="toast-container">
 			<template x-for="toast in toasts" :key="toast.id">
 				<div class="toast" :class="toast.type" x-text="toast.message"></div>
@@ -101,7 +122,7 @@
 		<div class="modal" x-show="showAddModal" x-cloak>
 			<div class="modal-content">
 				<div class="modal-header">
-					<h2>Add New Shortcut</h2>
+					<h2>Add Shortcut</h2>
 					<button class="close-btn" @click="showAddModal = false">&times;</button>
 				</div>
 				<div class="modal-body">
@@ -118,7 +139,7 @@
 							placeholder="e.g., 43219">
 					</div>
 					<div class="form-group">
-						<label for="shortcutName">Shortcut Name</label>
+						<label for="shortcutName">Name</label>
 						<input type="text" id="shortcutName" x-model="newShortcut.name"
 							placeholder="e.g., Home to Work">
 					</div>
@@ -127,8 +148,7 @@
 						<select id="groupName" x-model="newShortcut.groupName">
 							<option value="">Select a group</option>
 							<template x-for="group in groups" :key="group.name">
-								<option x-text="group.name" :value="group.name">
-								</option>
+								<option x-text="group.name" :value="group.name"></option>
 							</template>
 							<option value="new">Create new group...</option>
 						</select>
@@ -139,27 +159,24 @@
 							placeholder="e.g., Work Routes">
 					</div>
 					<div class="form-actions">
-						<button class="btn btn-secondary"
-							@click="showAddModal = false">Cancel</button>
-						<button class="btn btn-primary" @click="addShortcut">Add
-							Shortcut</button>
+						<button class="btn btn-secondary" @click="showAddModal = false">Cancel</button>
+						<button class="btn btn-primary" @click="addShortcut">Add Shortcut</button>
 					</div>
 				</div>
 			</div>
 		</div>
 
-		<!-- Confirmation Modal -->
+		<!-- Confirmation Modal (group deletion only) -->
 		<div class="modal" x-show="showConfirmModal" x-cloak>
 			<div class="modal-content">
 				<div class="modal-header">
-					<h2>Confirm Deletion</h2>
+					<h2>Delete Group</h2>
 					<button class="close-btn" @click="showConfirmModal = false">&times;</button>
 				</div>
 				<div class="modal-body">
 					<p x-text="confirmMessage"></p>
 					<div class="form-actions">
-						<button class="btn btn-secondary"
-							@click="showConfirmModal = false">Cancel</button>
+						<button class="btn btn-secondary" @click="showConfirmModal = false">Cancel</button>
 						<button class="btn btn-danger" @click="confirmDelete">Delete</button>
 					</div>
 				</div>

@@ -6,6 +6,7 @@ services:
       args:
         UID: ${UID:-1000}
     restart: unless-stopped
+    userns_mode: "keep-id"
     ports:
       - "8080:8080"
     env_file:

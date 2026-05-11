@@ -166,7 +166,8 @@ function busApp() {
 		deleteShortcut(groupIndex, shortcutIndex) {
 			this.itemToDelete = { groupIndex, shortcutIndex };
 			this.deleteType = 'shortcut';
-			this.confirmMessage = 'Are you sure you want to delete this shortcut?';
+			const s = this.groups[groupIndex].shortcuts[shortcutIndex];
+			this.confirmMessage = `Delete "${s.name}"?`;
 			this.showConfirmModal = true;
 		},
 

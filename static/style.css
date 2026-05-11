@@ -154,16 +154,6 @@ header {
 	gap: 10px;
 }
 
-.shortcut-name-container {
-	display: flex;
-	justify-content: space-between;
-	gap: 10px;
-}
-
-.shortcut-name-delete {
-	display: none;
-}
-
 .action-btn {
 	background: none;
 	border: none;
@@ -198,9 +188,15 @@ header {
 .shortcut-row {
 	display: flex;
 	align-items: center;
-	padding: 8px 5px;
+	padding: 10px 8px;
 	border-bottom: 1px solid var(--border);
 	column-gap: 10px;
+	cursor: pointer;
+	transition: background 0.15s ease;
+}
+
+.shortcut-row:hover {
+	background: #f8f9ff;
 }
 
 .shortcut-row:last-child {
@@ -212,14 +208,28 @@ header {
 	min-width: 0;
 }
 
+.shortcut-name {
+	font-weight: 600;
+	font-size: 14px;
+	color: var(--dark);
+	margin-bottom: 2px;
+}
+
 .arrivals {
 	flex: 0 0 200px;
 }
 
-.shortcut-delete {
-	flex: 0 0 32px;
+.shortcut-chevron {
+	flex: 0 0 20px;
+	color: var(--border);
+	font-size: 14px;
 	display: flex;
 	justify-content: center;
+	align-items: center;
+}
+
+.shortcut-row:hover .shortcut-chevron {
+	color: var(--gray);
 }
 
 .shortcut-info {
@@ -424,12 +434,8 @@ header {
 		min-width: 80px;
 	}
 
-	.shortcut-delete {
+	.shortcut-chevron {
 		display: none;
-	}
-
-	.shortcut-name-delete {
-		display: flex;
 	}
 }
 

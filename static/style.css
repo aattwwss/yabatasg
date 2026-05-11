@@ -327,6 +327,7 @@ body.modal-open { overflow: hidden; }
     display: flex;
     justify-content: space-between;
     align-items: center;
+    padding-right: 24px;
 }
 
 .card-service {
@@ -338,9 +339,9 @@ body.modal-open { overflow: hidden; }
 
 .card-del {
     position: absolute;
-    top: 12px;
-    right: 12px;
-    width: 30px; height: 30px;
+    top: 8px;
+    right: 8px;
+    width: 28px; height: 28px;
     border: none;
     background: transparent;
     color: var(--text-tertiary);
@@ -357,7 +358,7 @@ body.modal-open { overflow: hidden; }
 .card:hover .card-del { opacity: 1; }
 .card-del:hover { color: var(--danger); background: var(--danger-bg); }
 
-@media (hover: none) { .card-del { display: none; } }
+@media (hover: none) { .card-del { display: none; } .card-row { padding-right: 0; } }
 
 /* ── Card meta ── */
 .card-meta {

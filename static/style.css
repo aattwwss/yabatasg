@@ -197,10 +197,10 @@ header {
 
 .shortcut-row {
 	display: flex;
-	justify-content: space-between;
 	align-items: center;
 	padding: 8px 5px;
 	border-bottom: 1px solid var(--border);
+	column-gap: 10px;
 }
 
 .shortcut-row:last-child {
@@ -213,13 +213,11 @@ header {
 }
 
 .arrivals {
-	flex-shrink: 0;
-	width: 200px;
+	flex: 0 0 200px;
 }
 
 .shortcut-delete {
-	flex-shrink: 0;
-	width: 32px;
+	flex: 0 0 32px;
 	display: flex;
 	justify-content: center;
 }

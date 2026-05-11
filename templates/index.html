@@ -79,11 +79,11 @@
                             <span class="card-service" x-text="s.service"></span>
                             <div class="arrivals">
                                 <span class="arrival" :class="arrivalClass(s.arrivals[0])"
-                                    x-text="s.arrivals[0] != null ? s.arrivals[0] + 'm' : '--'"></span>
+                                    x-text="formatArrival(s.arrivals[0])"></span>
                                 <span class="arrival" :class="arrivalClass(s.arrivals[1])"
-                                    x-text="s.arrivals[1] != null ? s.arrivals[1] + 'm' : '--'"></span>
+                                    x-text="formatArrival(s.arrivals[1])"></span>
                                 <span class="arrival" :class="arrivalClass(s.arrivals[2])"
-                                    x-text="s.arrivals[2] != null ? s.arrivals[2] + 'm' : '--'"></span>
+                                    x-text="formatArrival(s.arrivals[2])"></span>
                             </div>
                         </div>
                         <div class="card-meta">

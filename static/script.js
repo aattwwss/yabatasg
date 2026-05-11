@@ -201,10 +201,14 @@ function busApp() {
 
         // ── Arrivals ──
         arrivalClass(v) {
-            if (v == null) return '';
+            if (v == null || v < 0) return '';
             if (v <= 2) return 'urgent';
             if (v <= 8) return 'soon';
             return 'later';
+        },
+        formatArrival(v) {
+            if (v == null || v < 0) return '--';
+            return v + 'm';
         },
         isStale(s) { return s.lastFetched && (Date.now() - s.lastFetched) > STALE_MS; },
 

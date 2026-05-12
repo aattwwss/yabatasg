@@ -51,9 +51,23 @@ function busApp() {
                 if (s) { s.arrivals = arrivals; s.lastFetched = fetchedAt; }
             });
             this._pollTimer = setInterval(() => this._fetchAll(), POLL_MS);
+            window.addEventListener('popstate', this._onPopState.bind(this));
         },
 
         destroy() { clearInterval(this._pollTimer); },
+
+        _onPopState(e) {
+            if (e.state?.appView) {
+                this.nearbyView = e.state.appView;
+                if (e.state.appView === 'stopDetail' && e.state.code) {
+                    this.selectedStop = { code: e.state.code, roadName: e.state.roadName, services: [], loading: true, error: '' };
+                    this._loadStopDetail(e.state.code, e.state.roadName);
+                }
+            } else {
+                this.nearbyView = '';
+                this.selectedStop = null;
+            }
+        },
 
         // ── Theme ──
         _loadTheme() {
@@ -238,6 +252,7 @@ function busApp() {
             this.filteredNearbyStops = [];
             this.nearbyLoading = true;
             this.nearbySearch = '';
+            history.pushState({ appView: 'stops' }, '');
 
             if (!navigator.geolocation) {
                 this.geoError = 'Geolocation not supported by your browser';
@@ -280,6 +295,11 @@ function busApp() {
         async selectStop(code, roadName) {
             this.nearbyView = 'stopDetail';
             this.selectedStop = { code, roadName, services: [], loading: true, error: '' };
+            history.pushState({ appView: 'stopDetail', code, roadName }, '');
+            this._loadStopDetail(code, roadName);
+        },
+
+        async _loadStopDetail(code, roadName) {
             try {
                 const r = await fetch(`/api/v1/stops/${code}/arrivals`);
                 if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -301,8 +321,8 @@ function busApp() {
             this.showAddModal = true;
         },
 
-        backToNearby() { this.nearbyView = 'stops'; this.selectedStop = null; },
-        backToHome() { this.nearbyView = ''; this.selectedStop = null; this.nearbyStops = []; },
+        backToNearby() { history.back(); },
+        backToHome() { history.back(); },
 
         async _fetchAll() {
             const jobs = [];

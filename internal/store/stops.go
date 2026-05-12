@@ -42,16 +42,22 @@ func New(dbPath string) (*Store, error) {
 			key   TEXT PRIMARY KEY,
 			value TEXT NOT NULL
 		);
+		CREATE TABLE IF NOT EXISTS users (
+			id         TEXT PRIMARY KEY,
+			phrase     TEXT UNIQUE NOT NULL,
+			token      TEXT UNIQUE NOT NULL,
+			config     TEXT NOT NULL DEFAULT '[]',
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		);
+		CREATE INDEX IF NOT EXISTS idx_users_phrase ON users(phrase);
+		CREATE INDEX IF NOT EXISTS idx_users_token  ON users(token);
 	`)
 	if err != nil {
 		return nil, err
 	}
 
-	s := &Store{db: db}
-	if err := s.ensureUserTables(); err != nil {
-		return nil, err
-	}
-	return s, nil
+	return &Store{db: db}, nil
 }
 
 func (s *Store) Sync(stops []lta.BusStop) error {

@@ -18,27 +18,7 @@ type User struct {
 	UpdatedAt time.Time
 }
 
-func (s *Store) ensureUserTables() error {
-	_, err := s.db.Exec(`
-		CREATE TABLE IF NOT EXISTS users (
-			id         TEXT PRIMARY KEY,
-			phrase     TEXT UNIQUE NOT NULL,
-			token      TEXT UNIQUE NOT NULL,
-			config     TEXT NOT NULL DEFAULT '[]',
-			created_at TEXT NOT NULL,
-			updated_at TEXT NOT NULL
-		);
-		CREATE INDEX IF NOT EXISTS idx_users_phrase ON users(phrase);
-		CREATE INDEX IF NOT EXISTS idx_users_token  ON users(token);
-	`)
-	return err
-}
-
 func (s *Store) RegisterUser(initialConfig string) (*User, error) {
-	if err := s.ensureUserTables(); err != nil {
-		return nil, err
-	}
-
 	id, err := newID()
 	if err != nil {
 		return nil, err
@@ -76,9 +56,6 @@ func (s *Store) RegisterUser(initialConfig string) (*User, error) {
 }
 
 func (s *Store) UserByPhrase(phrase string) (*User, error) {
-	if err := s.ensureUserTables(); err != nil {
-		return nil, err
-	}
 	u := &User{}
 	var ca, ua string
 	err := s.db.QueryRow(
@@ -94,9 +71,6 @@ func (s *Store) UserByPhrase(phrase string) (*User, error) {
 }
 
 func (s *Store) UserByToken(token string) (*User, error) {
-	if err := s.ensureUserTables(); err != nil {
-		return nil, err
-	}
 	u := &User{}
 	var ca, ua string
 	err := s.db.QueryRow(

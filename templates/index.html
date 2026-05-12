@@ -28,9 +28,8 @@
             <button class="btn btn-ghost" @click="showNearby()" x-show="!nearbyView">
                 <i class="fas fa-location-dot"></i> <span>Nearby</span>
             </button>
-            <button class="btn-icon" @click="openSync()" :aria-label="authToken ? 'Synced' : 'Sync devices'" :title="authToken ? 'Synced' : 'Sync devices'">
-                <i class="fas fa-cloud" x-show="!authToken" style="opacity:0.5"></i>
-                <i class="fas fa-cloud-check" x-show="authToken" style="color: #4f6ef7"></i>
+            <button class="btn-icon" @click="openSync()" aria-label="Sync devices" title="Sync devices">
+                <i class="fas fa-arrows-rotate" :style="authToken ? 'color: #4f6ef7' : 'opacity: 0.5'"></i>
             </button>
             <button class="btn-icon" @click="toggleTheme()" :aria-label="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'">
                 <i class="fas" :class="theme === 'dark' ? 'fa-sun' : 'fa-moon'"></i>

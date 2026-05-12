@@ -63,14 +63,16 @@ func main() {
 	styleHash, _ := fileHash(staticFS, "style.css")
 	scriptHash, _ := fileHash(staticFS, "script.js")
 	manifestHash, _ := fileHash(staticFS, "manifest.json")
-	iconHash, _ := fileHash(staticFS, "icon.svg")
+	iconSVGHash, _ := fileHash(staticFS, "icon.svg")
+	icon180Hash, _ := fileHash(staticFS, "icon-180.png")
 	swHash, _ := fileHash(templateFiles, "templates/sw.js")
 
 	tmplHashes := map[string]string{
 		"StyleCSS":    styleHash,
 		"ScriptJS":    scriptHash,
 		"Manifest":    manifestHash,
-		"IconSVG":     iconHash,
+		"IconSVG":     iconSVGHash,
+		"Icon180":     icon180Hash,
 		"SWJS":        swHash,
 	}
 

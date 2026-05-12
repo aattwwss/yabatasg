@@ -47,6 +47,28 @@ func TestStopDetailHandler(t *testing.T) {
 	}
 }
 
+func TestServiceLess(t *testing.T) {
+	tests := []struct {
+		a, b string
+		want bool
+	}{
+		{"10", "51", true},
+		{"51", "10", false},
+		{"196", "851", true},
+		{"851", "196", false},
+		{"10", "10e", true},
+		{"10e", "196", true},
+		{"851", "851e", true},
+		{"851e", "851", false},
+	}
+	for _, tt := range tests {
+		got := serviceLess(tt.a, tt.b)
+		if got != tt.want {
+			t.Errorf("serviceLess(%q, %q) = %v, want %v", tt.a, tt.b, got, tt.want)
+		}
+	}
+}
+
 func TestStopDetailHandlerMissingCode(t *testing.T) {
 	h := NewStopDetail(&mockLTA{})
 

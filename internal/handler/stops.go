@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/aattwwss/yabatasg/internal/lta"
@@ -68,7 +69,39 @@ func (h *StopDetail) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	sort.Slice(resp.Services, func(i, j int) bool {
+		return serviceLess(resp.Services[i].ServiceNumber, resp.Services[j].ServiceNumber)
+	})
+
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		slog.Error("Error encoding response", "error", err)
 	}
+}
+
+func serviceLess(a, b string) bool {
+	aNum, aSfx := splitService(a)
+	bNum, bSfx := splitService(b)
+	if aNum != bNum {
+		return aNum < bNum
+	}
+	return aSfx < bSfx
+}
+
+func splitService(s string) (int, string) {
+	i := 0
+	for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+		i++
+	}
+	if i == 0 {
+		return 0, s
+	}
+	return atoi(s[:i]), s[i:]
+}
+
+func atoi(s string) int {
+	n := 0
+	for _, c := range s {
+		n = n*10 + int(c-'0')
+	}
+	return n
 }

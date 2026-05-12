@@ -49,6 +49,8 @@ function busApp() {
                 if (s) { s.arrivals = arrivals; s.lastFetched = fetchedAt; }
             });
             this._pollTimer = setInterval(() => this._fetchAll(), POLL_MS);
+            this._handleHash();
+            window.addEventListener('hashchange', () => this._handleHash());
         },
 
         destroy() { clearInterval(this._pollTimer); },
@@ -231,6 +233,7 @@ function busApp() {
         // ── Nearby ──
         showNearby() {
             this.nearbyView = 'stops';
+            window.location.hash = '#stops';
             this.geoError = '';
             this.nearbyStops = [];
             this.nearbyLoading = true;
@@ -261,7 +264,8 @@ function busApp() {
 
         async selectStop(code, roadName) {
             this.nearbyView = 'stopDetail';
-            this.selectedStop = { code, roadName, services: [], loading: true, error: '' };
+            this.selectedStop = { code, roadName: roadName || code, services: [], loading: true, error: '' };
+            window.location.hash = '#busstop=' + code;
             try {
                 const r = await fetch(`/api/v1/stops/${code}/arrivals`);
                 if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -279,12 +283,40 @@ function busApp() {
             this.form.stopNumber = stopCode;
             this.form.name = `Bus ${serviceNo} - Stop ${stopCode}`;
             this.form.groupName = this.groups.length > 0 ? this.groups[0].name : '';
-            this.nearbyView = '';
             this.showAddModal = true;
+            this.backToHome();
         },
 
-        backToNearby() { this.nearbyView = 'stops'; this.selectedStop = null; },
-        backToHome() { this.nearbyView = ''; this.selectedStop = null; this.nearbyStops = []; },
+        backToNearby() {
+            if (this.nearbyStops.length) {
+                this.nearbyView = 'stops';
+                window.location.hash = '#stops';
+            } else {
+                this.backToHome();
+            }
+            this.selectedStop = null;
+        },
+
+        backToHome() {
+            this.nearbyView = '';
+            this.selectedStop = null;
+            this.nearbyStops = [];
+            window.location.hash = '';
+        },
+
+        _handleHash() {
+            const hash = window.location.hash;
+            if (hash.startsWith('#busstop=')) {
+                const code = hash.slice('#busstop='.length);
+                if (code && (!this.selectedStop || this.selectedStop.code !== code)) {
+                    this.selectStop(code);
+                }
+            } else if (hash === '#stops') {
+                this.backToNearby();
+            } else if (!hash || hash === '#') {
+                this.backToHome();
+            }
+        },
 
         async _fetchAll() {
             const jobs = [];

@@ -49,8 +49,6 @@ function busApp() {
                 if (s) { s.arrivals = arrivals; s.lastFetched = fetchedAt; }
             });
             this._pollTimer = setInterval(() => this._fetchAll(), POLL_MS);
-            this._handleHash();
-            window.addEventListener('hashchange', () => this._handleHash());
         },
 
         destroy() { clearInterval(this._pollTimer); },
@@ -233,7 +231,6 @@ function busApp() {
         // ── Nearby ──
         showNearby() {
             this.nearbyView = 'stops';
-            this._setHash('#stops');
             this.geoError = '';
             this.nearbyStops = [];
             this.nearbyLoading = true;
@@ -264,8 +261,7 @@ function busApp() {
 
         async selectStop(code, roadName) {
             this.nearbyView = 'stopDetail';
-            this.selectedStop = { code, roadName: roadName || code, services: [], loading: true, error: '' };
-            this._setHash('#busstop=' + code);
+            this.selectedStop = { code, roadName, services: [], loading: true, error: '' };
             try {
                 const r = await fetch(`/api/v1/stops/${code}/arrivals`);
                 if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -283,45 +279,12 @@ function busApp() {
             this.form.stopNumber = stopCode;
             this.form.name = `Bus ${serviceNo} - Stop ${stopCode}`;
             this.form.groupName = this.groups.length > 0 ? this.groups[0].name : '';
-            this.showAddModal = true;
-            this.backToHome();
-        },
-
-        backToNearby() {
-            if (this.nearbyStops.length) {
-                this.nearbyView = 'stops';
-                this._setHash('#stops');
-            } else {
-                this.backToHome();
-            }
-            this.selectedStop = null;
-        },
-
-        backToHome() {
             this.nearbyView = '';
-            this.selectedStop = null;
-            this.nearbyStops = [];
-            this._setHash('');
+            this.showAddModal = true;
         },
 
-        _handleHash() {
-            const hash = window.location.hash;
-            if (hash.startsWith('#busstop=')) {
-                const code = hash.slice('#busstop='.length);
-                if (code && (!this.selectedStop || this.selectedStop.code !== code)) {
-                    this.selectStop(code);
-                }
-            } else if (hash === '#stops') {
-                this.backToNearby();
-            } else if (!hash || hash === '#') {
-                this.backToHome();
-            }
-        },
-
-        _setHash(hash) {
-            const url = hash ? '#' + hash.replace(/^#/, '') : window.location.pathname;
-            history.replaceState(null, '', url);
-        },
+        backToNearby() { this.nearbyView = 'stops'; this.selectedStop = null; },
+        backToHome() { this.nearbyView = ''; this.selectedStop = null; this.nearbyStops = []; },
 
         async _fetchAll() {
             const jobs = [];

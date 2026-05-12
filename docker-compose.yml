@@ -1,16 +1,12 @@
-version: '3.8'
-
 services:
-  psql:
-    image: postgres:latest
-    environment:
-      POSTGRES_DB: ${DB_DATABASE}
-      POSTGRES_USER: ${DB_USERNAME}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+  yabatasg:
+    container_name: yabatasg
+    build:
+      context: .
+    restart: unless-stopped
     ports:
-      - "${DB_PORT}:5432"
+      - "8080:8080"
+    env_file:
+      - .env
     volumes:
-      - psql_volume:/var/lib/postgresql/data
-
-volumes:
-  psql_volume:
+      - ./data:/data

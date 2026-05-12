@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>yabata</title>
+    <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAQAAEABAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAMz/AGnd+gD8/v8ACgoKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEREREAAAAAEERERFAAAAEESIiIRQAAAQSREQiFAAABBIxEUIUAAAEEjERQhQAAAQSMRFCFAAABBIxEUIUAAAEEjERQhQAAAQSMRFCFAAABBIxEUIUAAAEEjERQhQAAAQRIzQhFAAAAEERERFAAAAABBERFAAAAAAARERAAAD4DwAA8AcAAOADAADgAwAA4AMAAOADAADgAwAA4AMAAOADAADgAwAA4AMAAOADAADgAwAA8AcAAPgPAAD8HwAA">
+    <link rel="manifest" href="static/manifest.json?v={{.Manifest}}">
+    <link rel="apple-touch-icon" sizes="180x180" href="static/icon-180.png?v={{.Icon180}}">
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    <link rel="stylesheet" href="static/style.css?v={{.StyleCSS}}">
+</head>
+<body>
+
+<div class="container" x-data="busApp()"
+    x-effect="document.body.classList.toggle('modal-open', showAddModal || showConfirmModal)"
+    @keydown.escape.window="showAddModal = false; showConfirmModal = false; showSyncModal = false; _closeSwipe()"
+    @keydown.ctrl.k.window.prevent="$refs.searchInput.focus()">
+
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <span class="logo"><i class="fas fa-bus"></i></span>
+            <span class="app-name">yabata</span>
+        </div>
+        <div class="header-actions">
+            <button class="btn btn-ghost" @click="showNearby()" x-show="!nearbyView">
+                <i class="fas fa-location-dot"></i> <span>Nearby</span>
+            </button>
+            <button class="btn-icon" @click="openSync()" aria-label="Sync devices" title="Sync devices">
+                <i class="fas fa-arrows-rotate" :style="authToken ? 'color: #4f6ef7' : 'opacity: 0.5'"></i>
+            </button>
+            <button class="btn-icon" @click="toggleTheme()" :aria-label="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'">
+                <i class="fas" :class="theme === 'dark' ? 'fa-sun' : 'fa-moon'"></i>
+            </button>
+            <button class="btn btn-primary" @click="showAddModal = true" x-show="!nearbyView">
+                <i class="fas fa-plus"></i> <span>Add</span>
+            </button>
+        </div>
+    </header>
+
+    <div x-show="!nearbyView">
+
+    <!-- Search -->
+    <div class="search-wrap" x-show="groups.length > 0 || searchTerm">
+        <i class="fas fa-search search-icon"></i>
+        <input type="text" x-ref="searchInput" placeholder="Search shortcuts..." x-model="searchTerm" @input="filter">
+        <span class="search-hint" x-show="!searchTerm">Ctrl+K</span>
+        <button class="search-clear" x-show="searchTerm" @click="searchTerm = ''; filter()">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+
+    <!-- Loading skeletons -->
+    <template x-if="loading && groups.length === 0">
+        <div class="skeletons">
+            <div class="sk-group"><div class="sk-name"></div></div>
+            <div class="sk-card"><div class="sk-service"></div><div class="sk-arrivals"><div></div><div></div><div></div></div></div>
+            <div class="sk-card"><div class="sk-service"></div><div class="sk-arrivals"><div></div><div></div><div></div></div></div>
+            <div class="sk-group"><div class="sk-name short"></div></div>
+            <div class="sk-card"><div class="sk-service"></div><div class="sk-arrivals"><div></div><div></div><div></div></div></div>
+        </div>
+    </template>
+
+    <!-- Groups & Cards -->
+    <template x-for="(group, gi) in filteredGroups" :key="gi">
+        <div class="group-section">
+            <div class="group-header">
+                <span class="group-name" x-text="group.name"></span>
+                <button class="group-del" @click="askDeleteGroup(gi)" title="Delete group">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+
+            <template x-for="(s, si) in group.shortcuts" :key="si">
+                <div class="card-outer" :class="{ swiped: swiped && swiped.gi === gi && swiped.si === si }">
+                    <div class="card-swipe-bg" @click.stop="deleteShortcut(gi, si)">
+                        <i class="fas fa-trash"></i> Delete
+                    </div>
+                    <div class="card" :class="{ stale: isStale(s) }"
+                        @touchstart.passive="touchStart($event, gi, si)"
+                        @touchmove="touchMove($event)"
+                        @touchend="touchEnd()">
+                        <button class="card-del" @click.stop="deleteShortcut(gi, si)" title="Delete">
+                            <i class="fas fa-times"></i>
+                        </button>
+                        <div class="card-row">
+                            <span class="card-service" x-text="s.service"></span>
+                            <div class="arrivals">
+                                <span class="arrival" :class="arrivalClass(s.arrivals[0])"
+                                    x-text="formatArrival(s.arrivals[0])"></span>
+                                <span class="arrival" :class="arrivalClass(s.arrivals[1])"
+                                    x-text="formatArrival(s.arrivals[1])"></span>
+                                <span class="arrival" :class="arrivalClass(s.arrivals[2])"
+                                    x-text="formatArrival(s.arrivals[2])"></span>
+                            </div>
+                        </div>
+                        <div class="card-meta">
+                            <span x-text="s.name || 'Unnamed'"></span>
+                            <span class="sep">·</span>
+                            <span x-text="'Stop ' + s.stopNumber"></span>
+                            <span class="sep" x-show="s.lastFetched">·</span>
+                            <span class="updated" x-show="s.lastFetched" x-text="relativeTime(s.lastFetched)"></span>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </template>
+
+    <!-- Empty (no data ever saved) -->
+    <div class="empty-state" x-show="groups.length === 0 && !loading">
+        <div class="empty-icon"><i class="fas fa-bus"></i></div>
+        <h2>No shortcuts yet</h2>
+        <p>Add a bus service and stop number to start tracking arrivals.</p>
+        <button class="btn btn-primary" @click="showAddModal = true">
+            <i class="fas fa-plus"></i> Add your first
+        </button>
+    </div>
+
+    <!-- Empty (filtered to nothing) -->
+    <div class="empty-state" x-show="groups.length > 0 && filteredGroups.length === 0 && !loading">
+        <div class="empty-icon"><i class="fas fa-search"></i></div>
+        <p>No shortcuts match "<span x-text="searchTerm"></span>"</p>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer" x-show="groups.length > 0">
+        <button @click="_fetchAll()"><i class="fas fa-sync-alt"></i> Refresh</button>
+        <button @click="exportData()"><i class="fas fa-download"></i> Export</button>
+        <button @click="$refs.importFile.click()"><i class="fas fa-upload"></i> Import</button>
+        <input type="file" x-ref="importFile" @change="importData" accept=".json" hidden>
+    </footer>
+
+    </div>
+
+    <!-- ── Nearby Stops List ── -->
+    <div x-show="nearbyView === 'stops'" x-cloak>
+        <div class="nearby-header">
+            <button class="btn-icon" @click="backToHome()"><i class="fas fa-arrow-left"></i></button>
+            <h2>Nearby Stops</h2>
+            <div></div>
+        </div>
+
+        <div x-show="nearbyLoading" class="empty-state">
+            <div class="empty-icon"><i class="fas fa-spinner fa-spin"></i></div>
+            <p>Finding stops near you...</p>
+        </div>
+
+        <div x-show="geoError" class="empty-state">
+            <div class="empty-icon"><i class="fas fa-exclamation-triangle"></i></div>
+            <p x-text="geoError"></p>
+        </div>
+
+        <div x-show="!nearbyLoading && !geoError && nearbyStops.length === 0" class="empty-state">
+            <div class="empty-icon"><i class="fas fa-map-marker-alt"></i></div>
+            <p>No stops found nearby</p>
+        </div>
+
+        <div class="search-wrap" x-show="!nearbyLoading && nearbyStops.length > 0" style="margin-top: 0;">
+            <i class="fas fa-search search-icon"></i>
+            <input type="text" placeholder="Filter stops..." x-model="nearbySearch" @input="applyNearbyFilter()" autocomplete="off" style="font-size: 14px;">
+            <button class="search-clear" x-show="nearbySearch" @click="nearbySearch = ''; applyNearbyFilter()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <div x-show="!nearbyLoading && nearbyStops.length > 0 && filteredNearbyStops.length === 0" class="empty-state" style="padding-top: 30px;">
+            <p>No stops match "<span x-text="nearbySearch"></span>"</p>
+        </div>
+
+        <template x-if="!nearbyLoading && nearbyStops.length > 0 && filteredNearbyStops.length > 0">
+            <div class="nearby-stops">
+                <template x-for="stop in filteredNearbyStops" :key="stop.code">
+                    <div class="nearby-stop-card" @click="selectStop(stop.code, stop.roadName)">
+                        <div class="nearby-stop-main">
+                            <span class="nearby-stop-road" x-text="stop.roadName"></span>
+                            <span class="nearby-stop-desc" x-text="stop.description"></span>
+                        </div>
+                        <div class="nearby-stop-right">
+                            <span class="nearby-stop-dist" x-text="stop.distance < 1000 ? Math.round(stop.distance) + 'm' : (stop.distance / 1000).toFixed(1) + 'km'"></span>
+                            <span class="nearby-stop-code" x-text="stop.code"></span>
+                            <i class="fas fa-chevron-right"></i>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </template>
+    </div>
+
+    <!-- ── Stop Detail ── -->
+    <div x-show="nearbyView === 'stopDetail'" x-cloak>
+        <div class="nearby-header">
+            <button class="btn-icon" @click="backToNearby()"><i class="fas fa-arrow-left"></i></button>
+            <div class="nearby-header-title">
+                <span class="nearby-stop-road" x-text="selectedStop?.roadName"></span>
+                <span class="nearby-stop-code" x-text="selectedStop?.code"></span>
+            </div>
+            <div></div>
+        </div>
+
+        <div x-show="selectedStop?.loading" class="empty-state">
+            <div class="empty-icon"><i class="fas fa-spinner fa-spin"></i></div>
+            <p>Loading arrivals...</p>
+        </div>
+
+        <div x-show="selectedStop?.error" class="empty-state">
+            <div class="empty-icon"><i class="fas fa-exclamation-triangle"></i></div>
+            <p x-text="selectedStop?.error"></p>
+        </div>
+
+        <div x-show="!selectedStop?.loading && !selectedStop?.error && (!selectedStop?.services || selectedStop.services.length === 0)" class="empty-state">
+            <div class="empty-icon"><i class="fas fa-clock"></i></div>
+            <p>No buses arriving at this stop right now</p>
+        </div>
+
+        <template x-if="!selectedStop?.loading && !selectedStop?.error && selectedStop?.services && selectedStop.services.length > 0">
+            <div class="stop-services">
+                <template x-for="svc in selectedStop.services" :key="svc.serviceNo">
+                    <div class="stop-service-card">
+                        <div class="stop-service-row">
+                            <span class="card-service" x-text="svc.serviceNo" style="font-size: 28px;"></span>
+                            <div class="arrivals">
+                                <span class="arrival" :class="arrivalClass(svc.next1)" x-text="formatArrival(svc.next1)"></span>
+                                <span class="arrival" :class="arrivalClass(svc.next2)" x-text="formatArrival(svc.next2)"></span>
+                                <span class="arrival" :class="arrivalClass(svc.next3)" x-text="formatArrival(svc.next3)"></span>
+                            </div>
+                        </div>
+                        <div class="stop-service-meta">
+                            <span x-text="svc.operator"></span>
+                            <button class="btn btn-ghost" style="padding:6px 10px;font-size:12px;margin-left:auto;" @click.stop="addShortcutFromStop(svc.serviceNo, selectedStop.code)">
+                                <i class="fas fa-plus"></i> Add
+                            </button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </template>
+    </div>
+
+    <!-- Toasts -->
+    <div class="toast-container">
+        <template x-for="t in toasts" :key="t.id">
+            <div class="toast" :class="t.type">
+                <i class="fas" :class="t.type === 'success' ? 'fa-check-circle' : t.type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'"></i>
+                <span x-text="t.msg"></span>
+            </div>
+        </template>
+    </div>
+
+    <!-- Add Modal -->
+    <div class="modal-backdrop" x-show="showAddModal" x-cloak @click.self="showAddModal = false">
+        <div class="modal-sheet">
+            <div class="modal-head">
+                <h2>Add Shortcut</h2>
+                <button class="modal-close" @click="showAddModal = false">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="field">
+                    <label>Bus Service Number</label>
+                    <input type="text" x-model="form.service" @input="onlyDigits" placeholder="e.g. 188" autocomplete="off">
+                </div>
+                <div class="field">
+                    <label>Bus Stop Number</label>
+                    <input type="text" x-model="form.stopNumber" @input="onlyDigits" placeholder="e.g. 43219" autocomplete="off">
+                </div>
+                <div class="field">
+                    <label>Label <span class="field-optional">optional</span></label>
+                    <input type="text" x-model="form.name" placeholder="e.g. Home to Office" autocomplete="off">
+                </div>
+                <div class="field">
+                    <label>Group</label>
+                    <select x-model="form.groupName">
+                        <option value="">Select a group...</option>
+                        <template x-for="g in groups" :key="g.name">
+                            <option :value="g.name" x-text="g.name"></option>
+                        </template>
+                        <option value="__new">+ Create new group...</option>
+                    </select>
+                </div>
+                <div class="field" x-show="form.groupName === '__new'">
+                    <label>New Group Name</label>
+                    <input type="text" x-model="form.newGroupName" placeholder="e.g. Work Routes" autocomplete="off">
+                </div>
+                <div class="modal-actions">
+                    <button class="btn btn-ghost" @click="showAddModal = false">Cancel</button>
+                    <button class="btn btn-primary" @click="add">Add Shortcut</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Modal -->
+    <div class="modal-backdrop" x-show="showConfirmModal" x-cloak @click.self="showConfirmModal = false">
+        <div class="modal-sheet">
+            <div class="modal-head">
+                <h2>Delete Group</h2>
+                <button class="modal-close" @click="showConfirmModal = false">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="confirm-msg" x-text="confirmMsg"></p>
+                <div class="modal-actions">
+                    <button class="btn btn-ghost" @click="showConfirmModal = false">Cancel</button>
+                    <button class="btn btn-danger" @click="confirmAction()">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sync Modal -->
+    <div class="modal-backdrop" x-show="showSyncModal" x-cloak @click.self="showSyncModal = false">
+        <div class="modal-sheet">
+            <div class="modal-head">
+                <h2 x-text="syncView === 'created' ? 'Account Created' : syncView === 'synced' ? 'Sync' : syncView === 'link' ? 'Link Device' : 'Sync'"></h2>
+                <button class="modal-close" @click="showSyncModal = false">&times;</button>
+            </div>
+            <div class="modal-body">
+
+                <!-- Guest: create or link -->
+                <div x-show="syncView === ''">
+                    <p class="sync-desc">Sync your shortcuts across devices with a phrase.</p>
+                    <button class="btn btn-primary btn-full" @click="createAccount()">
+                        <i class="fas fa-plus-circle"></i> Create Account
+                    </button>
+                    <div class="sync-divider"><span>or link existing</span></div>
+                    <label class="field-label">Sync phrase</label>
+                    <div class="phrase-inputs">
+                        <input type="text" x-model="linkWords[0]" @input="_phraseInput(0, $event)" @keydown="_phraseKeydown(0, $event)" @paste="_phrasePaste($event)" maxlength="12" autocomplete="off" autocapitalize="off">
+                        <span class="phrase-dash">-</span>
+                        <input type="text" x-model="linkWords[1]" @input="_phraseInput(1, $event)" @keydown="_phraseKeydown(1, $event)" @paste="_phrasePaste($event)" maxlength="12" autocomplete="off" autocapitalize="off">
+                        <span class="phrase-dash">-</span>
+                        <input type="text" x-model="linkWords[2]" @input="_phraseInput(2, $event)" @keydown="_phraseKeydown(2, $event)" @paste="_phrasePaste($event)" maxlength="12" autocomplete="off" autocapitalize="off">
+                        <span class="phrase-dash">-</span>
+                        <input type="text" x-model="linkWords[3]" @input="_phraseInput(3, $event)" @keydown="_phraseKeydown(3, $event)" @paste="_phrasePaste($event)" maxlength="12" autocomplete="off" autocapitalize="off">
+                    </div>
+                    <p class="sync-error" x-show="linkError" x-text="linkError"></p>
+                    <div class="modal-actions">
+                        <button class="btn btn-ghost" @click="showSyncModal = false">Cancel</button>
+                        <button class="btn btn-primary" @click="linkDevice()">Link</button>
+                    </div>
+                </div>
+
+                <!-- Syncing spinner -->
+                <div x-show="syncView === 'syncing'" class="sync-loading">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>Syncing...</p>
+                </div>
+
+                <!-- Created: show phrase -->
+                <div x-show="syncView === 'created'" class="sync-created">
+                    <div class="sync-check"><i class="fas fa-check-circle"></i></div>
+                    <p class="sync-desc">Enter this phrase on your other device:</p>
+                    <div class="sync-phrase-box">
+                        <code class="sync-phrase" x-text="syncPhrase"></code>
+                        <button class="btn btn-ghost btn-sm" @click="copyPhrase()"><i class="fas fa-copy"></i> Copy</button>
+                    </div>
+                    <div class="modal-actions">
+                        <button class="btn btn-primary btn-full" @click="syncView = 'synced'; showSyncModal = false">Done</button>
+                    </div>
+                </div>
+
+                <!-- Link: enter phrase -->
+                <div x-show="syncView === 'link'">
+                    <p class="sync-desc">Enter the sync phrase from your other device.</p>
+                    <label class="field-label">Sync phrase</label>
+                    <div class="phrase-inputs">
+                        <input type="text" x-model="linkWords[0]" @input="_phraseInput(0, $event)" @keydown="_phraseKeydown(0, $event)" @paste="_phrasePaste($event)" maxlength="12" autocomplete="off" autocapitalize="off">
+                        <span class="phrase-dash">-</span>
+                        <input type="text" x-model="linkWords[1]" @input="_phraseInput(1, $event)" @keydown="_phraseKeydown(1, $event)" @paste="_phrasePaste($event)" maxlength="12" autocomplete="off" autocapitalize="off">
+                        <span class="phrase-dash">-</span>
+                        <input type="text" x-model="linkWords[2]" @input="_phraseInput(2, $event)" @keydown="_phraseKeydown(2, $event)" @paste="_phrasePaste($event)" maxlength="12" autocomplete="off" autocapitalize="off">
+                        <span class="phrase-dash">-</span>
+                        <input type="text" x-model="linkWords[3]" @input="_phraseInput(3, $event)" @keydown="_phraseKeydown(3, $event)" @paste="_phrasePaste($event)" maxlength="12" autocomplete="off" autocapitalize="off">
+                    </div>
+                    <p class="sync-error" x-show="linkError" x-text="linkError"></p>
+                    <div class="modal-actions">
+                        <button class="btn btn-ghost" @click="syncView = ''; linkError = ''">Back</button>
+                        <button class="btn btn-primary" @click="linkDevice()">Link</button>
+                    </div>
+                </div>
+
+                <!-- Synced: show status and unlink -->
+                <div x-show="syncView === 'synced'">
+                    <div class="sync-status">
+                        <i class="fas fa-check-circle" style="color:#22c55e"></i>
+                        <span>Synced</span>
+                    </div>
+                    <p class="sync-desc">Your phrase for linking other devices:</p>
+                    <div class="sync-phrase-box">
+                        <code class="sync-phrase" x-text="syncPhrase || 'Loading...'"></code>
+                        <button class="btn btn-ghost btn-sm" @click="copyPhrase()"><i class="fas fa-copy"></i> Copy</button>
+                    </div>
+                    <p class="sync-hint" x-show="!syncPhrase">Fetching your phrase...</p>
+                    <div class="sync-divider"></div>
+                    <button class="btn btn-ghost btn-full" style="color:var(--danger)" @click="unlinkDevice()">
+                        <i class="fas fa-unlink"></i> Unlink this device
+                    </button>
+                    <div class="modal-actions">
+                        <button class="btn btn-primary btn-full" @click="showSyncModal = false">Done</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script src="static/script.js?v={{.ScriptJS}}"></script>
+<script>
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js?v={{.SWJS}}');
+}
+</script>
+</body>
+</html>

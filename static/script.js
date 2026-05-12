@@ -38,16 +38,7 @@ function busApp() {
         geoError: '',
         nearbyLoading: false,
         nearbySearch: '',
-
-        get filteredNearbyStops() {
-            const q = this.nearbySearch.toLowerCase().trim();
-            if (!q) return this.nearbyStops;
-            return this.nearbyStops.filter(s =>
-                s.code.includes(q) ||
-                s.roadName.toLowerCase().includes(q) ||
-                s.description.toLowerCase().includes(q)
-            );
-        },
+        filteredNearbyStops: [],
 
         init() {
             this._loadTheme();
@@ -244,6 +235,7 @@ function busApp() {
             this.nearbyView = 'stops';
             this.geoError = '';
             this.nearbyStops = [];
+            this.filteredNearbyStops = [];
             this.nearbyLoading = true;
             this.nearbySearch = '';
 
@@ -265,10 +257,24 @@ function busApp() {
                 const r = await fetch(`/api/v1/stops/nearby?lat=${lat}&lng=${lng}&limit=20`);
                 if (!r.ok) throw new Error(`HTTP ${r.status}`);
                 this.nearbyStops = await r.json();
+                this.filteredNearbyStops = [...this.nearbyStops];
             } catch {
                 this.geoError = 'Failed to load nearby stops';
             }
             this.nearbyLoading = false;
+        },
+
+        applyNearbyFilter() {
+            const q = this.nearbySearch.toLowerCase().trim();
+            if (!q) {
+                this.filteredNearbyStops = [...this.nearbyStops];
+                return;
+            }
+            this.filteredNearbyStops = this.nearbyStops.filter(s =>
+                s.code.includes(q) ||
+                s.roadName.toLowerCase().includes(q) ||
+                s.description.toLowerCase().includes(q)
+            );
         },
 
         async selectStop(code, roadName) {

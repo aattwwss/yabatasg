@@ -558,6 +558,11 @@ function busApp() {
         },
 
         _phraseKeydown(idx, evt) {
+            if (evt.key === 'Enter') {
+                evt.preventDefault();
+                this.linkDevice();
+                return;
+            }
             if (evt.key === ' ' || evt.key === '-') {
                 evt.preventDefault();
                 if (idx < 3) this._focusNext(evt.target, idx + 1);

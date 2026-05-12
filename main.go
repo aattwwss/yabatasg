@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"html/template"
 	"io/fs"
@@ -58,6 +60,20 @@ func main() {
 		os.Exit(1)
 	}
 
+	styleHash, _ := fileHash(staticFS, "style.css")
+	scriptHash, _ := fileHash(staticFS, "script.js")
+	manifestHash, _ := fileHash(staticFS, "manifest.json")
+	iconHash, _ := fileHash(staticFS, "icon.svg")
+	swHash, _ := fileHash(templateFiles, "templates/sw.js")
+
+	tmplHashes := map[string]string{
+		"StyleCSS":    styleHash,
+		"ScriptJS":    scriptHash,
+		"Manifest":    manifestHash,
+		"IconSVG":     iconHash,
+		"SWJS":        swHash,
+	}
+
 	ltaClient := lta.New(os.Getenv("LTA_ACCESS_KEY"), os.Getenv("LTA_API_HOST"))
 	stopsSyncer := syncer.New(stopsStore, ltaClient)
 
@@ -67,11 +83,12 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+	mux.Handle("GET /static/", cacheStatic(http.StripPrefix("/static/", http.FileServer(http.FS(staticFS)))))
 
 	swJS, _ := templateFiles.ReadFile("templates/sw.js")
 	mux.HandleFunc("GET /sw.js", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/javascript")
+		w.Header().Set("Cache-Control", "public, max-age=31536000")
 		w.Write(swJS)
 	})
 
@@ -81,7 +98,7 @@ func main() {
 			http.NotFound(w, r)
 			return
 		}
-		if err := indexTmpl.Execute(w, nil); err != nil {
+		if err := indexTmpl.Execute(w, tmplHashes); err != nil {
 			slog.Error("Template execution failed", "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		}
@@ -135,6 +152,22 @@ func main() {
 		os.Exit(1)
 	}
 	slog.Info("Server stopped")
+}
+
+func fileHash(fsys fs.FS, name string) (string, error) {
+	data, err := fs.ReadFile(fsys, name)
+	if err != nil {
+		return "", err
+	}
+	h := sha256.Sum256(data)
+	return hex.EncodeToString(h[:12]), nil
+}
+
+func cacheStatic(next http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		next.ServeHTTP(w, r)
+	}
 }
 
 func corsMiddleware(next http.Handler) http.HandlerFunc {

@@ -153,9 +153,21 @@
             <p>No stops found nearby</p>
         </div>
 
-        <template x-if="!nearbyLoading && nearbyStops.length > 0">
+        <div class="search-wrap" x-show="!nearbyLoading && nearbyStops.length > 0" style="margin-top: 0;">
+            <i class="fas fa-search search-icon"></i>
+            <input type="text" placeholder="Filter stops..." x-model="nearbySearch" autocomplete="off" style="font-size: 14px;">
+            <button class="search-clear" x-show="nearbySearch" @click="nearbySearch = ''">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <div x-show="!nearbyLoading && nearbyStops.length > 0 && filteredNearbyStops.length === 0" class="empty-state" style="padding-top: 30px;">
+            <p>No stops match "<span x-text="nearbySearch"></span>"</p>
+        </div>
+
+        <template x-if="!nearbyLoading && nearbyStops.length > 0 && filteredNearbyStops.length > 0">
             <div class="nearby-stops">
-                <template x-for="stop in nearbyStops" :key="stop.code">
+                <template x-for="stop in filteredNearbyStops" :key="stop.code">
                     <div class="nearby-stop-card" @click="selectStop(stop.code, stop.roadName)">
                         <div class="nearby-stop-main">
                             <span class="nearby-stop-road" x-text="stop.roadName"></span>

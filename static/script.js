@@ -37,6 +37,17 @@ function busApp() {
         selectedStop: null,
         geoError: '',
         nearbyLoading: false,
+        nearbySearch: '',
+
+        get filteredNearbyStops() {
+            const q = this.nearbySearch.toLowerCase().trim();
+            if (!q) return this.nearbyStops;
+            return this.nearbyStops.filter(s =>
+                s.code.includes(q) ||
+                s.roadName.toLowerCase().includes(q) ||
+                s.description.toLowerCase().includes(q)
+            );
+        },
 
         init() {
             this._loadTheme();
@@ -234,6 +245,7 @@ function busApp() {
             this.geoError = '';
             this.nearbyStops = [];
             this.nearbyLoading = true;
+            this.nearbySearch = '';
 
             if (!navigator.geolocation) {
                 this.geoError = 'Geolocation not supported by your browser';

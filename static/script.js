@@ -243,7 +243,7 @@ function busApp() {
 
             navigator.geolocation.getCurrentPosition(
                 pos => this._loadNearby(pos.coords.latitude, pos.coords.longitude),
-                err => { this.geoError = 'Location unavailable — check permissions'; this.nearbyLoading = false; },
+                err => { console.error('Geolocation error:', err); this.geoError = err.message; this.nearbyLoading = false; },
                 { timeout: 10000, maximumAge: 60000 }
             );
         },

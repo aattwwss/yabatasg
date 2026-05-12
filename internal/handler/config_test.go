@@ -173,6 +173,13 @@ func TestConfigDelete(t *testing.T) {
 	token := register(t, s)
 	c := NewConfig(s)
 
+	// Set some config first.
+	cfg := `[{"name":"Work","shortcuts":[]}]`
+	putReq := httptest.NewRequest("PUT", "/api/v1/config", strings.NewReader(cfg))
+	putReq.Header.Set("Authorization", "Bearer "+token)
+	c.Put(httptest.NewRecorder(), putReq)
+
+	// Delete (clear config).
 	req := httptest.NewRequest("DELETE", "/api/v1/config", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
@@ -182,14 +189,18 @@ func TestConfigDelete(t *testing.T) {
 		t.Errorf("expected 200, got %d", rec.Code)
 	}
 
-	// Token should no longer work.
+	// Token should still work — only config is cleared, user stays for other devices.
 	getReq := httptest.NewRequest("GET", "/api/v1/config", nil)
 	getReq.Header.Set("Authorization", "Bearer "+token)
 	getRec := httptest.NewRecorder()
 	c.Get(getRec, getReq)
 
-	if getRec.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401 after delete, got %d", getRec.Code)
+	if getRec.Code != http.StatusOK {
+		t.Errorf("expected 200 after delete, got %d", getRec.Code)
+	}
+	body := strings.TrimSpace(getRec.Body.String())
+	if body != "[]" {
+		t.Errorf("expected '[]', got %q", body)
 	}
 }
 

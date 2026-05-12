@@ -96,8 +96,12 @@ func (c *Config) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := c.store.DeleteUser(token); err != nil {
-		slog.Error("delete user failed", "error", err)
+	// Clear config but keep the user — other devices may share the same phrase.
+	if err := c.store.SetConfig(token, "[]"); err == sql.ErrNoRows {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid token"})
+		return
+	} else if err != nil {
+		slog.Error("clear config failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Server error"})
 		return
 	}

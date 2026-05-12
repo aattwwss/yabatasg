@@ -536,39 +536,35 @@ function busApp() {
         },
 
         _phraseInput(idx, evt) {
-            const val = this.linkWords[idx];
-            if (val.includes('-')) {
-                const parts = val.split('-');
+            let val = evt.target.value;
+            if (!val) return;
+
+            // Handle full phrase typed/pasted with dashes.
+            const parts = val.split('-');
+            if (parts.length >= 2 && parts.filter(p => p.length >= 2).length >= 2) {
                 for (let i = 0; i < 4; i++) {
                     this.linkWords[i] = (parts[i] || '').replace(/[^a-zA-Z]/g, '').toLowerCase();
                 }
-                this._focusPhrase(Math.min(parts.length, 3));
+                this._focusNext(evt.target, Math.min(parts.filter(Boolean).length, 3));
                 return;
             }
-            // Strip any non-alpha that snuck through (space, dash, etc).
+
+            // Strip non-alpha and lowercase.
             const cleaned = val.replace(/[^a-zA-Z]/g, '').toLowerCase();
             if (cleaned !== val) {
+                evt.target.value = cleaned;
                 this.linkWords[idx] = cleaned;
-                if (idx < 3 && (val.includes(' ') || val.endsWith('-'))) {
-                    this._focusPhrase(idx + 1);
-                }
             }
         },
 
         _phraseKeydown(idx, evt) {
-            if (evt.key === 'Backspace' && !this.linkWords[idx] && idx > 0) {
-                evt.preventDefault();
-                this._focusPhrase(idx - 1);
-            }
             if (evt.key === ' ' || evt.key === '-') {
                 evt.preventDefault();
-                if (idx < 3) this._focusPhrase(idx + 1);
+                if (idx < 3) this._focusNext(evt.target, idx + 1);
+                return;
             }
-            if (evt.key === 'ArrowLeft' && evt.target.selectionStart === 0 && idx > 0) {
-                this._focusPhrase(idx - 1);
-            }
-            if (evt.key === 'ArrowRight' && evt.target.selectionStart === evt.target.value.length && idx < 3) {
-                this._focusPhrase(idx + 1);
+            if (evt.key === 'Backspace' && evt.target.value === '' && idx > 0) {
+                this._focusNext(evt.target, idx - 1);
             }
         },
 
@@ -580,14 +576,17 @@ function busApp() {
             for (let i = 0; i < 4; i++) {
                 this.linkWords[i] = (parts[i] || '').replace(/[^a-z]/g, '');
             }
-            this._focusPhrase(Math.min(parts.length, 3));
+            this._focusNext(evt.target, Math.min(parts.length, 3));
         },
 
-        _focusPhrase(idx) {
-            this.$nextTick(() => {
-                const el = this.$refs['pw' + idx];
-                if (el) { el.focus(); el.select(); }
-            });
+        _focusNext(fromEl, idx) {
+            const row = fromEl.closest('.phrase-inputs');
+            if (!row) return;
+            const inputs = row.querySelectorAll('input');
+            if (inputs[idx]) {
+                inputs[idx].focus();
+                inputs[idx].select();
+            }
         },
 
         copyPhrase() {

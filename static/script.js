@@ -37,7 +37,6 @@ function busApp() {
         selectedStop: null,
         geoError: '',
         nearbyLoading: false,
-        _ignoreHash: false,
 
         init() {
             this._loadTheme();
@@ -306,7 +305,6 @@ function busApp() {
         },
 
         _handleHash() {
-            if (this._ignoreHash) return;
             const hash = window.location.hash;
             if (hash.startsWith('#busstop=')) {
                 const code = hash.slice('#busstop='.length);
@@ -321,9 +319,8 @@ function busApp() {
         },
 
         _setHash(hash) {
-            this._ignoreHash = true;
-            window.location.hash = hash;
-            this._ignoreHash = false;
+            const url = hash ? '#' + hash.replace(/^#/, '') : window.location.pathname;
+            history.replaceState(null, '', url);
         },
 
         async _fetchAll() {

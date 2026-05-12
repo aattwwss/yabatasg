@@ -15,7 +15,7 @@
 
 <div class="container" x-data="busApp()"
     x-effect="document.body.classList.toggle('modal-open', showAddModal || showConfirmModal)"
-    @keydown.escape.window="showAddModal = false; showConfirmModal = false; _closeSwipe()"
+    @keydown.escape.window="showAddModal = false; showConfirmModal = false; showSyncModal = false; _closeSwipe()"
     @keydown.ctrl.k.window.prevent="$refs.searchInput.focus()">
 
     <!-- Header -->
@@ -27,6 +27,10 @@
         <div class="header-actions">
             <button class="btn btn-ghost" @click="showNearby()" x-show="!nearbyView">
                 <i class="fas fa-location-dot"></i> <span>Nearby</span>
+            </button>
+            <button class="btn-icon" @click="openSync()" :aria-label="authToken ? 'Synced' : 'Sync devices'" :title="authToken ? 'Synced' : 'Sync devices'">
+                <i class="fas fa-cloud" x-show="!authToken" style="opacity:0.5"></i>
+                <i class="fas fa-cloud-check" x-show="authToken" style="color: #4f6ef7"></i>
             </button>
             <button class="btn-icon" @click="toggleTheme()" :aria-label="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'">
                 <i class="fas" :class="theme === 'dark' ? 'fa-sun' : 'fa-moon'"></i>
@@ -301,6 +305,91 @@
                     <button class="btn btn-ghost" @click="showConfirmModal = false">Cancel</button>
                     <button class="btn btn-danger" @click="confirmAction()">Delete</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sync Modal -->
+    <div class="modal-backdrop" x-show="showSyncModal" x-cloak @click.self="showSyncModal = false">
+        <div class="modal-sheet">
+            <div class="modal-head">
+                <h2 x-text="syncView === 'created' ? 'Account Created' : syncView === 'synced' ? 'Sync' : syncView === 'link' ? 'Link Device' : 'Sync'"></h2>
+                <button class="modal-close" @click="showSyncModal = false">&times;</button>
+            </div>
+            <div class="modal-body">
+
+                <!-- Guest: create or link -->
+                <div x-show="syncView === ''">
+                    <p class="sync-desc">Sync your shortcuts across devices with a phrase.</p>
+                    <button class="btn btn-primary btn-full" @click="createAccount()">
+                        <i class="fas fa-plus-circle"></i> Create Account
+                    </button>
+                    <div class="sync-divider"><span>or link existing</span></div>
+                    <div class="field">
+                        <label>Sync phrase</label>
+                        <input type="text" x-model="linkPhrase" placeholder="word-word-word-word" autocomplete="off" style="font-family:monospace;font-size:14px;text-align:center">
+                    </div>
+                    <p class="sync-error" x-show="linkError" x-text="linkError"></p>
+                    <div class="modal-actions">
+                        <button class="btn btn-ghost" @click="showSyncModal = false">Cancel</button>
+                        <button class="btn btn-primary" @click="linkDevice()">Link</button>
+                    </div>
+                </div>
+
+                <!-- Syncing spinner -->
+                <div x-show="syncView === 'syncing'" class="sync-loading">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>Syncing...</p>
+                </div>
+
+                <!-- Created: show phrase -->
+                <div x-show="syncView === 'created'" class="sync-created">
+                    <div class="sync-check"><i class="fas fa-check-circle"></i></div>
+                    <p class="sync-desc">Enter this phrase on your other device:</p>
+                    <div class="sync-phrase-box">
+                        <code class="sync-phrase" x-text="syncPhrase"></code>
+                        <button class="btn btn-ghost btn-sm" @click="copyPhrase()"><i class="fas fa-copy"></i> Copy</button>
+                    </div>
+                    <div class="modal-actions">
+                        <button class="btn btn-primary btn-full" @click="syncView = 'synced'; showSyncModal = false">Done</button>
+                    </div>
+                </div>
+
+                <!-- Link: enter phrase -->
+                <div x-show="syncView === 'link'">
+                    <p class="sync-desc">Enter the sync phrase from your other device.</p>
+                    <div class="field">
+                        <label>Sync phrase</label>
+                        <input type="text" x-model="linkPhrase" placeholder="word-word-word-word" autocomplete="off" style="font-family:monospace;font-size:14px;text-align:center">
+                    </div>
+                    <p class="sync-error" x-show="linkError" x-text="linkError"></p>
+                    <div class="modal-actions">
+                        <button class="btn btn-ghost" @click="syncView = ''; linkError = ''">Back</button>
+                        <button class="btn btn-primary" @click="linkDevice()">Link</button>
+                    </div>
+                </div>
+
+                <!-- Synced: show status and unlink -->
+                <div x-show="syncView === 'synced'">
+                    <div class="sync-status">
+                        <i class="fas fa-check-circle" style="color:#22c55e"></i>
+                        <span>Synced</span>
+                    </div>
+                    <p class="sync-desc">Your phrase for linking other devices:</p>
+                    <div class="sync-phrase-box">
+                        <code class="sync-phrase" x-text="syncPhrase || 'Loading...'"></code>
+                        <button class="btn btn-ghost btn-sm" @click="copyPhrase()"><i class="fas fa-copy"></i> Copy</button>
+                    </div>
+                    <p class="sync-hint" x-show="!syncPhrase">Fetching your phrase...</p>
+                    <div class="sync-divider"></div>
+                    <button class="btn btn-ghost btn-full" style="color:var(--danger)" @click="unlinkDevice()">
+                        <i class="fas fa-unlink"></i> Unlink this device
+                    </button>
+                    <div class="modal-actions">
+                        <button class="btn btn-primary btn-full" @click="showSyncModal = false">Done</button>
+                    </div>
+                </div>
+
             </div>
         </div>
     </div>

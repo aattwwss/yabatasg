@@ -115,6 +115,16 @@ func main() {
 	stopDetailHandler := handler.NewStopDetail(ltaClient)
 	mux.Handle("GET /api/v1/stops/{code}/arrivals", corsMiddleware(stopDetailHandler))
 
+	authHandler := handler.NewAuth(stopsStore)
+	mux.Handle("POST /api/v1/auth/register", corsMiddleware(http.HandlerFunc(authHandler.Register)))
+	mux.Handle("POST /api/v1/auth/link", corsMiddleware(http.HandlerFunc(authHandler.Link)))
+	mux.Handle("GET /api/v1/auth/me", corsMiddleware(http.HandlerFunc(authHandler.Me)))
+
+	configHandler := handler.NewConfig(stopsStore)
+	mux.Handle("GET /api/v1/config", corsMiddleware(http.HandlerFunc(configHandler.Get)))
+	mux.Handle("PUT /api/v1/config", corsMiddleware(http.HandlerFunc(configHandler.Put)))
+	mux.Handle("DELETE /api/v1/config", corsMiddleware(http.HandlerFunc(configHandler.Delete)))
+
 	mux.HandleFunc("POST /api/v1/stops/sync", corsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if err := stopsSyncer.SyncNow(); err != nil {

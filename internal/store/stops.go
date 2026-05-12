@@ -47,7 +47,11 @@ func New(dbPath string) (*Store, error) {
 		return nil, err
 	}
 
-	return &Store{db: db}, nil
+	s := &Store{db: db}
+	if err := s.ensureUserTables(); err != nil {
+		return nil, err
+	}
+	return s, nil
 }
 
 func (s *Store) Sync(stops []lta.BusStop) error {

@@ -40,11 +40,25 @@ function busApp() {
         nearbySearch: '',
         filteredNearbyStops: [],
 
+        // sync
+        AUTH_TOKEN_KEY: 'busAppToken',
+        showSyncModal: false,
+        syncView: '',
+        authToken: '',
+        syncPhrase: '',
+        linkPhrase: '',
+        linkError: '',
+        _syncDebounce: null,
+
         init() {
             this._loadTheme();
+            this._loadAuth();
             this._load();
             this.filteredGroups = [...this.groups];
             this._fetchAll().then(() => { this.loading = false; });
+            if (this.authToken) {
+                this._loadFromServer();
+            }
             this.$el.addEventListener('update-arrivals', e => {
                 const { groupIndex, shortcutIndex, arrivals, fetchedAt } = e.detail;
                 const s = this.groups[groupIndex]?.shortcuts[shortcutIndex];
@@ -102,6 +116,7 @@ function busApp() {
                 shortcuts: g.shortcuts.map(s => ({ service: s.service, stopNumber: s.stopNumber, name: s.name }))
             }));
             localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+            if (this.authToken) this._debounceSync();
         },
 
         // ── Search ──
@@ -393,6 +408,208 @@ function busApp() {
             const id = ++this._toastId;
             this.toasts.push({ id, msg, type });
             setTimeout(() => { this.toasts = this.toasts.filter(t => t.id !== id); }, 3000);
+        },
+
+        // ── Sync ──
+        _loadAuth() {
+            this.authToken = localStorage.getItem(this.AUTH_TOKEN_KEY) || '';
+        },
+
+        _saveAuth() {
+            if (this.authToken) {
+                localStorage.setItem(this.AUTH_TOKEN_KEY, this.authToken);
+            } else {
+                localStorage.removeItem(this.AUTH_TOKEN_KEY);
+            }
+        },
+
+        openSync() {
+            this.linkPhrase = '';
+            this.linkError = '';
+            if (this.authToken) {
+                this.syncView = 'synced';
+                this.syncPhrase = localStorage.getItem('busAppPhrase') || '';
+            } else {
+                this.syncView = '';
+            }
+            this.showSyncModal = true;
+        },
+
+        async createAccount() {
+            this.syncView = 'syncing';
+            this._serializeGroups();
+            const data = JSON.stringify(this.groups.map(g => ({
+                name: g.name,
+                shortcuts: g.shortcuts.map(s => ({ service: s.service, stopNumber: s.stopNumber, name: s.name }))
+            })));
+            try {
+                const r = await fetch('/api/v1/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ config: data === '[]' ? '' : data })
+                });
+                if (!r.ok) throw new Error((await r.json()).error || 'Failed');
+                const j = await r.json();
+                this.authToken = j.token;
+                this.syncPhrase = j.phrase;
+                this.syncView = 'created';
+                this._saveAuth();
+                localStorage.setItem('busAppPhrase', j.phrase);
+            } catch (e) {
+                this.syncView = '';
+                this._toast('Failed to create account', 'error');
+            }
+        },
+
+        async linkDevice() {
+            const phrase = this.linkPhrase.trim().toLowerCase();
+            if (!phrase) { this.linkError = 'Enter a sync phrase'; return; }
+            this.syncView = 'syncing';
+            this.linkError = '';
+            try {
+                const r = await fetch('/api/v1/auth/link', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phrase })
+                });
+                if (!r.ok) {
+                    const msg = (await r.json()).error || 'Not found';
+                    this.linkError = msg;
+                    this.syncView = 'link';
+                    return;
+                }
+                const j = await r.json();
+                this.authToken = j.token;
+                this._saveAuth();
+                // Fetch server config.
+                const cr = await fetch('/api/v1/config', {
+                    headers: { 'Authorization': 'Bearer ' + j.token }
+                });
+                if (cr.ok) {
+                    const cfg = await cr.json();
+                    if (Array.isArray(cfg) && cfg.length > 0) {
+                        this.groups = cfg;
+                        for (const g of this.groups) {
+                            for (const s of g.shortcuts) {
+                                s.arrivals = [null, null, null];
+                                s.lastFetched = 0;
+                            }
+                        }
+                        this._serializeGroups();
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+                        this.filteredGroups = [...this.groups];
+                        this.loading = true;
+                        this._fetchAll().then(() => { this.loading = false; });
+                    }
+                }
+                // Fetch phrase for display.
+                const mr = await fetch('/api/v1/auth/me', {
+                    headers: { 'Authorization': 'Bearer ' + j.token }
+                });
+                if (mr.ok) {
+                    const me = await mr.json();
+                    this.syncPhrase = me.phrase;
+                    localStorage.setItem('busAppPhrase', me.phrase);
+                }
+                this.syncView = 'synced';
+                this._toast('Device linked', 'success');
+            } catch {
+                this.linkError = 'Connection failed';
+                this.syncView = 'link';
+            }
+        },
+
+        async unlinkDevice() {
+            try {
+                await fetch('/api/v1/config', {
+                    method: 'DELETE',
+                    headers: { 'Authorization': 'Bearer ' + this.authToken }
+                });
+            } catch { /* best effort */ }
+            this.authToken = '';
+            this.syncPhrase = '';
+            this.syncView = '';
+            this.showSyncModal = false;
+            this._saveAuth();
+            localStorage.removeItem('busAppPhrase');
+            this._toast('Device unlinked', 'info');
+        },
+
+        copyPhrase() {
+            navigator.clipboard.writeText(this.syncPhrase).then(
+                () => this._toast('Copied', 'success'),
+                () => this._toast('Failed to copy', 'error')
+            );
+        },
+
+        _serializeGroups() {
+            // Ensure groups/shortcuts are plain objects (not Alpine proxies).
+            this.groups = JSON.parse(JSON.stringify(
+                this.groups.map(g => ({
+                    name: g.name,
+                    shortcuts: g.shortcuts.map(s => ({
+                        service: s.service,
+                        stopNumber: s.stopNumber,
+                        name: s.name,
+                        arrivals: s.arrivals || [null, null, null],
+                        lastFetched: s.lastFetched || 0
+                    }))
+                }))
+            ));
+        },
+
+        _debounceSync() {
+            clearTimeout(this._syncDebounce);
+            this._syncDebounce = setTimeout(() => this._syncToServer(), 2000);
+        },
+
+        async _syncToServer() {
+            const data = this.groups.map(g => ({
+                name: g.name,
+                shortcuts: g.shortcuts.map(s => ({ service: s.service, stopNumber: s.stopNumber, name: s.name }))
+            }));
+            try {
+                await fetch('/api/v1/config', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + this.authToken
+                    },
+                    body: JSON.stringify(data)
+                });
+            } catch { /* silent */ }
+        },
+
+        async _loadFromServer() {
+            try {
+                const r = await fetch('/api/v1/auth/me', {
+                    headers: { 'Authorization': 'Bearer ' + this.authToken }
+                });
+                if (!r.ok) { this.authToken = ''; this._saveAuth(); return; }
+                const me = await r.json();
+                this.syncPhrase = me.phrase;
+                localStorage.setItem('busAppPhrase', me.phrase);
+
+                const cr = await fetch('/api/v1/config', {
+                    headers: { 'Authorization': 'Bearer ' + this.authToken }
+                });
+                if (cr.ok) {
+                    const cfg = await cr.json();
+                    if (Array.isArray(cfg) && cfg.length > 0) {
+                        this.groups = cfg;
+                        for (const g of this.groups) {
+                            for (const s of g.shortcuts) {
+                                s.arrivals = [null, null, null];
+                                s.lastFetched = 0;
+                            }
+                        }
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+                        this.filteredGroups = [...this.groups];
+                        this.loading = true;
+                        this._fetchAll().then(() => { this.loading = false; });
+                    }
+                }
+            } catch { /* offline — use localStorage */ }
         },
 
         // ── Helpers ──

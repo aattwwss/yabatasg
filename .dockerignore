@@ -1,0 +1,11 @@
+.git
+data
+tmp
+.env
+*.exe
+*.test
+*.out
+yabatasg
+.vscode
+.idea
+.DS_Store

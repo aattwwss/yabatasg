@@ -37,6 +37,7 @@ function busApp() {
         selectedStop: null,
         geoError: '',
         nearbyLoading: false,
+        _ignoreHash: false,
 
         init() {
             this._loadTheme();
@@ -233,7 +234,7 @@ function busApp() {
         // ── Nearby ──
         showNearby() {
             this.nearbyView = 'stops';
-            window.location.hash = '#stops';
+            this._setHash('#stops');
             this.geoError = '';
             this.nearbyStops = [];
             this.nearbyLoading = true;
@@ -265,7 +266,7 @@ function busApp() {
         async selectStop(code, roadName) {
             this.nearbyView = 'stopDetail';
             this.selectedStop = { code, roadName: roadName || code, services: [], loading: true, error: '' };
-            window.location.hash = '#busstop=' + code;
+            this._setHash('#busstop=' + code);
             try {
                 const r = await fetch(`/api/v1/stops/${code}/arrivals`);
                 if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -290,7 +291,7 @@ function busApp() {
         backToNearby() {
             if (this.nearbyStops.length) {
                 this.nearbyView = 'stops';
-                window.location.hash = '#stops';
+                this._setHash('#stops');
             } else {
                 this.backToHome();
             }
@@ -301,10 +302,11 @@ function busApp() {
             this.nearbyView = '';
             this.selectedStop = null;
             this.nearbyStops = [];
-            window.location.hash = '';
+            this._setHash('');
         },
 
         _handleHash() {
+            if (this._ignoreHash) return;
             const hash = window.location.hash;
             if (hash.startsWith('#busstop=')) {
                 const code = hash.slice('#busstop='.length);
@@ -316,6 +318,12 @@ function busApp() {
             } else if (!hash || hash === '#') {
                 this.backToHome();
             }
+        },
+
+        _setHash(hash) {
+            this._ignoreHash = true;
+            window.location.hash = hash;
+            this._ignoreHash = false;
         },
 
         async _fetchAll() {

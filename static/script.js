@@ -545,8 +545,14 @@ function busApp() {
                 this._focusPhrase(Math.min(parts.length, 3));
                 return;
             }
+            // Strip any non-alpha that snuck through (space, dash, etc).
             const cleaned = val.replace(/[^a-zA-Z]/g, '').toLowerCase();
-            if (cleaned !== val) this.linkWords[idx] = cleaned;
+            if (cleaned !== val) {
+                this.linkWords[idx] = cleaned;
+                if (idx < 3 && (val.includes(' ') || val.endsWith('-'))) {
+                    this._focusPhrase(idx + 1);
+                }
+            }
         },
 
         _phraseKeydown(idx, evt) {

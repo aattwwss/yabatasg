@@ -7,6 +7,7 @@
     <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAQAAEABAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAMz/AGnd+gD8/v8ACgoKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEREREAAAAAEERERFAAAAEESIiIRQAAAQSREQiFAAABBIxEUIUAAAEEjERQhQAAAQSMRFCFAAABBIxEUIUAAAEEjERQhQAAAQSMRFCFAAABBIxEUIUAAAEEjERQhQAAAQRIzQhFAAAAEERERFAAAAABBERFAAAAAAARERAAAD4DwAA8AcAAOADAADgAwAA4AMAAOADAADgAwAA4AMAAOADAADgAwAA4AMAAOADAADgAwAA8AcAAPgPAAD8HwAA">
     <link rel="manifest" href="static/manifest.json?v={{.Manifest}}">
     <link rel="apple-touch-icon" sizes="180x180" href="static/icon-180.png?v={{.Icon180}}">
+    <script src="https://cdn.jsdelivr.net/npm/@alpinejs/sort@3.14.8/dist/cdn.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
     <link rel="stylesheet" href="static/style.css?v={{.StyleCSS}}">
@@ -64,17 +65,17 @@
     </template>
 
     <!-- Groups & Cards -->
-    <template x-for="(group, gi) in filteredGroups" :key="gi">
-        <div class="group-section">
-            <div class="group-header">
+    <template x-for="(group, gi) in filteredGroups" :key="group.name">
+        <div class="group-section" x-sort="_onSort(gi, $item, $position)">
+            <div class="group-header" x-sort:ignore>
                 <span class="group-name" x-text="group.name"></span>
-                <button class="group-del" @click="askDeleteGroup(gi)" title="Delete group">
+                <button class="group-del" x-sort:ignore @click="askDeleteGroup(gi)" title="Delete group">
                     <i class="fas fa-trash"></i>
                 </button>
             </div>
 
-            <template x-for="(s, si) in group.shortcuts" :key="si">
-                <div class="card-outer"
+            <template x-for="(s, si) in group.shortcuts" :key="s.service + '|' + s.stopNumber">
+                <div class="card-outer" x-sort:item="s.service + '|' + s.stopNumber"
                     :class="{
                         'swiped-left': swiped && swiped.gi === gi && swiped.si === si && swipedDir === 'left',
                         'swiped-right': swiped && swiped.gi === gi && swiped.si === si && swipedDir === 'right'
@@ -85,21 +86,18 @@
                     <div class="card-swipe-bg card-swipe-bg-left" @click.stop="edit(gi, si)">
                         <i class="fas fa-pen"></i> Edit
                     </div>
-                    <div class="card"
-                        :class="{ stale: isStale(s), 'card-dragging': dragging && dragging.gi === gi && dragging.targetSi === si }"
+                    <div class="card" :class="{ stale: isStale(s) }"
                         @touchstart.passive="touchStart($event, gi, si)"
                         @touchmove="touchMove($event)"
                         @touchend="touchEnd()">
-                        <button class="card-drag-handle" x-show="!searchTerm"
-                            @mousedown.prevent.stop="dragStart($event, gi, si)"
-                            @touchstart.prevent.stop="dragStart($event, gi, si)"
+                        <button class="card-drag-handle" x-sort:handle x-show="!searchTerm"
                             title="Drag to reorder">
                             <i class="fas fa-grip-vertical"></i>
                         </button>
-                        <button class="card-edit" @click.stop="edit(gi, si)" title="Edit">
+                        <button class="card-edit" x-sort:ignore @click.stop="edit(gi, si)" title="Edit">
                             <i class="fas fa-pencil"></i>
                         </button>
-                        <button class="card-del" @click.stop="deleteShortcut(gi, si)" title="Delete">
+                        <button class="card-del" x-sort:ignore @click.stop="deleteShortcut(gi, si)" title="Delete">
                             <i class="fas fa-times"></i>
                         </button>
                         <div class="card-row">

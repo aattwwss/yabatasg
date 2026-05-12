@@ -74,7 +74,7 @@ body {
 }
 
 body.modal-open { overflow: hidden; }
-body.is-dragging { user-select: none; -webkit-user-select: none; }
+body.sorting { user-select: none; -webkit-user-select: none; }
 
 .container { max-width: 540px; margin: 0 auto; }
 
@@ -337,12 +337,6 @@ body.is-dragging { user-select: none; -webkit-user-select: none; }
 .card-outer.swiped-left .card { transform: translateX(-80px); }
 .card-outer.swiped-right .card { transform: translateX(80px); }
 .card.stale { opacity: 0.45; }
-
-.card-dragging {
-    z-index: 10 !important;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-    transform: scale(1.02);
-}
 
 .card-row {
     display: flex;

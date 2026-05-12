@@ -32,10 +32,6 @@ function busApp() {
         // edit
         editTarget: null,
 
-        // drag-and-drop
-        dragging: null,
-        _dragMoveHandler: null,
-        _dragEndHandler: null,
         _pollTimer: null,
         _toastId: 0,
         _failCount: {},
@@ -81,7 +77,6 @@ function busApp() {
 
         destroy() {
             clearInterval(this._pollTimer);
-            this._removeDragListeners();
             window.removeEventListener('popstate', this._onPopStateBound);
         },
 
@@ -131,13 +126,12 @@ function busApp() {
                 shortcuts: g.shortcuts.map(s => ({ service: s.service, stopNumber: s.stopNumber, name: s.name }))
             }));
             localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-            if (this.authToken) this._debounceSync();
+            if (this.authToken) this._syncToServer();
         },
 
         // ── Search ──
         filter() {
             this._closeSwipe();
-            if (this.dragging) this.dragEnd();
             const t = this.searchTerm.toLowerCase().trim();
             if (!t) { this.filteredGroups = [...this.groups]; return; }
             this.filteredGroups = this.groups.reduce((acc, g) => {
@@ -323,70 +317,24 @@ function busApp() {
             this._touchStartX = this._touchCurX = 0;
         },
 
-        // ── Drag-and-drop ──
-        dragStart(e, gi, si) {
-            if (this.searchTerm) return;
-            if (!this.filteredGroups[gi]?.shortcuts[si]) return;
-            e.preventDefault();
-            this._closeSwipe();
-            const cardEl = e.currentTarget.closest('.card');
-            const cardHeight = cardEl?.offsetHeight || 60;
-            const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
-            this.dragging = { gi, si, targetSi: si, sourceSi: si, startY: clientY, cardHeight };
-            this._addDragListeners();
-        },
-
-        dragMove(e) {
-            if (!this.dragging) return;
-            e.preventDefault();
-            const y = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
-            const diff = y - this.dragging.startY;
-            const threshold = this.dragging.cardHeight * 0.5;
-            if (Math.abs(diff) < threshold) return;
-            const group = this.groups[this.dragging.gi];
+        // ── Drag-and-drop (via Alpine Sort plugin) ──
+        _onSort(filteredGi, item, position) {
+            const fgroup = this.filteredGroups[filteredGi];
+            if (!fgroup) return;
+            const group = this.groups.find(g => g.name === fgroup.name);
             if (!group) return;
-            const direction = diff > 0 ? 1 : -1;
-            const newSi = this.dragging.targetSi + direction;
-            if (newSi < 0 || newSi >= group.shortcuts.length) return;
-            const item = group.shortcuts.splice(this.dragging.targetSi, 1)[0];
-            group.shortcuts.splice(newSi, 0, item);
-            this.dragging.targetSi = newSi;
-            this.dragging.startY = y;
-            this.filteredGroups = [...this.groups];
-        },
-
-        dragEnd() {
-            if (!this.dragging) return;
-            this._removeDragListeners();
-            if (this.dragging.sourceSi !== this.dragging.targetSi) {
-                this._save();
-                this._toast('Shortcut reordered', 'success');
-            }
-            this.dragging = null;
-        },
-
-        _addDragListeners() {
-            this._dragMoveHandler = e => this.dragMove(e);
-            this._dragEndHandler = e => this.dragEnd(e);
-            document.addEventListener('mousemove', this._dragMoveHandler);
-            document.addEventListener('mouseup', this._dragEndHandler);
-            document.addEventListener('touchmove', this._dragMoveHandler, { passive: false });
-            document.addEventListener('touchend', this._dragEndHandler);
-            document.body.classList.add('is-dragging');
-        },
-
-        _removeDragListeners() {
-            if (this._dragMoveHandler) {
-                document.removeEventListener('mousemove', this._dragMoveHandler);
-                document.removeEventListener('touchmove', this._dragMoveHandler);
-            }
-            if (this._dragEndHandler) {
-                document.removeEventListener('mouseup', this._dragEndHandler);
-                document.removeEventListener('touchend', this._dragEndHandler);
-            }
-            document.body.classList.remove('is-dragging');
-            this._dragMoveHandler = null;
-            this._dragEndHandler = null;
+            const [service, stopNumber] = item.split('|');
+            const oldIndex = group.shortcuts.findIndex(
+                s => s.service === service && s.stopNumber === stopNumber
+            );
+            if (oldIndex === -1) return;
+            // $position counts the group-header DOM child at index 0, so it's
+            // off by one relative to the 0-indexed shortcuts array.
+            const idx = position - 1;
+            if (oldIndex === idx) return;
+            const [moved] = group.shortcuts.splice(oldIndex, 1);
+            group.shortcuts.splice(idx, 0, moved);
+            this._save();
         },
 
         // ── Arrivals ──
@@ -769,10 +717,6 @@ function busApp() {
             ));
         },
 
-        _debounceSync() {
-            clearTimeout(this._syncDebounce);
-            this._syncDebounce = setTimeout(() => this._syncToServer(), 2000);
-        },
 
         async _syncToServer() {
             const data = this.groups.map(g => ({

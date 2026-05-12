@@ -46,7 +46,7 @@ function busApp() {
         syncView: '',
         authToken: '',
         syncPhrase: '',
-        linkPhrase: '',
+        linkWords: ['', '', '', ''],
         linkError: '',
         _syncDebounce: null,
 
@@ -424,7 +424,7 @@ function busApp() {
         },
 
         openSync() {
-            this.linkPhrase = '';
+            this.linkWords = ['', '', '', ''];
             this.linkError = '';
             if (this.authToken) {
                 this.syncView = 'synced';
@@ -462,8 +462,8 @@ function busApp() {
         },
 
         async linkDevice() {
-            const phrase = this.linkPhrase.trim().toLowerCase();
-            if (!phrase) { this.linkError = 'Enter a sync phrase'; return; }
+            const phrase = this.linkWords.map(w => w.trim().toLowerCase().replace(/[^a-z]/g, '')).join('-');
+            if (phrase.split('-').filter(Boolean).length < 4) { this.linkError = 'Enter all 4 words'; return; }
             this.syncView = 'syncing';
             this.linkError = '';
             try {
@@ -533,6 +533,55 @@ function busApp() {
             this._saveAuth();
             localStorage.removeItem('busAppPhrase');
             this._toast('Device unlinked', 'info');
+        },
+
+        _phraseInput(idx, evt) {
+            const val = this.linkWords[idx];
+            if (val.includes('-')) {
+                const parts = val.split('-');
+                for (let i = 0; i < 4; i++) {
+                    this.linkWords[i] = (parts[i] || '').replace(/[^a-zA-Z]/g, '').toLowerCase();
+                }
+                this._focusPhrase(Math.min(parts.length, 3));
+                return;
+            }
+            const cleaned = val.replace(/[^a-zA-Z]/g, '').toLowerCase();
+            if (cleaned !== val) this.linkWords[idx] = cleaned;
+        },
+
+        _phraseKeydown(idx, evt) {
+            if (evt.key === 'Backspace' && !this.linkWords[idx] && idx > 0) {
+                evt.preventDefault();
+                this._focusPhrase(idx - 1);
+            }
+            if (evt.key === ' ' || evt.key === '-') {
+                evt.preventDefault();
+                if (idx < 3) this._focusPhrase(idx + 1);
+            }
+            if (evt.key === 'ArrowLeft' && evt.target.selectionStart === 0 && idx > 0) {
+                this._focusPhrase(idx - 1);
+            }
+            if (evt.key === 'ArrowRight' && evt.target.selectionStart === evt.target.value.length && idx < 3) {
+                this._focusPhrase(idx + 1);
+            }
+        },
+
+        _phrasePaste(evt) {
+            const paste = (evt.clipboardData || window.clipboardData).getData('text');
+            if (!paste || !paste.includes('-')) return;
+            evt.preventDefault();
+            const parts = paste.trim().toLowerCase().split('-');
+            for (let i = 0; i < 4; i++) {
+                this.linkWords[i] = (parts[i] || '').replace(/[^a-z]/g, '');
+            }
+            this._focusPhrase(Math.min(parts.length, 3));
+        },
+
+        _focusPhrase(idx) {
+            this.$nextTick(() => {
+                const el = this.$refs['pw' + idx];
+                if (el) { el.focus(); el.select(); }
+            });
         },
 
         copyPhrase() {

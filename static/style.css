@@ -828,3 +828,47 @@ body.modal-open { overflow: hidden; }
     font-size: 13px;
     flex-shrink: 0;
 }
+
+/* ── Phrase input ── */
+.field-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.phrase-inputs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 12px;
+}
+
+.phrase-inputs input {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 6px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 13px;
+    text-align: center;
+    background: var(--bg, #f0f2f5);
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s;
+}
+.phrase-inputs input:focus {
+    border-color: var(--primary);
+    background: var(--surface);
+    box-shadow: 0 0 0 3px rgba(79,110,247,0.12);
+}
+
+.phrase-dash {
+    font-size: 18px;
+    color: var(--text-tertiary);
+    font-weight: 600;
+    flex-shrink: 0;
+    user-select: none;
+}

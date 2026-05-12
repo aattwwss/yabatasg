@@ -69,6 +69,12 @@ func main() {
 
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 
+	swJS, _ := templateFiles.ReadFile("templates/sw.js")
+	mux.HandleFunc("GET /sw.js", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/javascript")
+		w.Write(swJS)
+	})
+
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			slog.Warn("404 Not Found", "path", r.URL.Path, "method", r.Method)

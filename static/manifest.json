@@ -1,0 +1,17 @@
+{
+  "name": "yabata",
+  "short_name": "yabata",
+  "description": "Singapore bus arrival timings",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f0f2f5",
+  "theme_color": "#4f6ef7",
+  "icons": [
+    {
+      "src": "static/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

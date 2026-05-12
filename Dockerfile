@@ -5,9 +5,13 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 
+# Pre-compile heavy deps into the Go build cache. This layer is
+# Docker-cached when go.mod/go.sum don't change, cutting the final
+# build step from ~10s to ~3s.
+RUN go build modernc.org/sqlite
+
 COPY . .
-RUN --mount=type=cache,target=/root/.cache/go-build \
-    go build -o /yabatasg .
+RUN go build -ldflags="-s -w" -o /yabatasg .
 
 FROM alpine:3.21
 

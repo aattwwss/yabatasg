@@ -23,10 +23,19 @@ function busApp() {
 
         // swipe
         swiped: null,
+        swipedDir: null,
         _touchTarget: null,
         _touchStartX: 0,
         _touchCurX: 0,
         _swipeThreshold: 60,
+
+        // edit
+        editTarget: null,
+
+        // drag-and-drop
+        dragging: null,
+        _dragMoveHandler: null,
+        _dragEndHandler: null,
         _pollTimer: null,
         _toastId: 0,
         _failCount: {},
@@ -65,10 +74,16 @@ function busApp() {
                 if (s) { s.arrivals = arrivals; s.lastFetched = fetchedAt; }
             });
             this._pollTimer = setInterval(() => this._fetchAll(), POLL_MS);
-            window.addEventListener('popstate', this._onPopState.bind(this));
+            this._onPopStateBound = this._onPopState.bind(this);
+            window.addEventListener('popstate', this._onPopStateBound);
+            this.$watch('showAddModal', val => { if (!val) this.editTarget = null; });
         },
 
-        destroy() { clearInterval(this._pollTimer); },
+        destroy() {
+            clearInterval(this._pollTimer);
+            this._removeDragListeners();
+            window.removeEventListener('popstate', this._onPopStateBound);
+        },
 
         _onPopState(e) {
             if (e.state?.appView) {
@@ -122,6 +137,7 @@ function busApp() {
         // ── Search ──
         filter() {
             this._closeSwipe();
+            if (this.dragging) this.dragEnd();
             const t = this.searchTerm.toLowerCase().trim();
             if (!t) { this.filteredGroups = [...this.groups]; return; }
             this.filteredGroups = this.groups.reduce((acc, g) => {
@@ -142,6 +158,54 @@ function busApp() {
             this._closeSwipe();
             const f = this.form;
             if (!f.service || !f.stopNumber) { this._toast('Fill in both service and stop number', 'error'); return; }
+
+            // Edit path
+            if (this.editTarget) {
+                const { gi, si } = this.editTarget;
+                const oldGroup = this.groups[gi];
+                if (!oldGroup || !oldGroup.shortcuts[si]) { this.editTarget = null; return; }
+
+                let targetGroupName = f.groupName;
+                if (targetGroupName === '__new') {
+                    if (!f.newGroupName.trim()) { this._toast('Enter a group name', 'error'); return; }
+                    targetGroupName = f.newGroupName.trim();
+                    if (!this.groups.some(g => g.name === targetGroupName)) {
+                        this.groups.push({ name: targetGroupName, shortcuts: [] });
+                    }
+                }
+                if (!targetGroupName) { this._toast('Select a group', 'error'); return; }
+
+                const targetGroup = this.groups.find(g => g.name === targetGroupName);
+                const isSameGroup = targetGroup === oldGroup;
+                const hasDup = isSameGroup
+                    ? oldGroup.shortcuts.some((x, i) => i !== si && x.service === f.service && x.stopNumber === f.stopNumber)
+                    : targetGroup.shortcuts.some(x => x.service === f.service && x.stopNumber === f.stopNumber);
+                if (hasDup) { this._toast('Already exists in this group', 'error'); return; }
+
+                const s = oldGroup.shortcuts[si];
+                s.service = f.service;
+                s.stopNumber = f.stopNumber;
+                s.name = f.name.trim() || `Bus ${f.service} - Stop ${f.stopNumber}`;
+                s.arrivals = [null, null, null];
+                s.lastFetched = 0;
+
+                if (!isSameGroup) {
+                    oldGroup.shortcuts.splice(si, 1);
+                    targetGroup.shortcuts.push(s);
+                    if (oldGroup.shortcuts.length === 0) {
+                        this.groups.splice(this.groups.indexOf(oldGroup), 1);
+                    }
+                }
+
+                this._save();
+                this.showAddModal = false;
+                this._resetForm();
+                this.editTarget = null;
+                this.filteredGroups = [...this.groups];
+                this._toast('Shortcut updated', 'success');
+                this._fetchAll();
+                return;
+            }
 
             let groupName = f.groupName;
             if (groupName === '__new') {
@@ -214,6 +278,27 @@ function busApp() {
             this.showConfirmModal = true;
         },
 
+        // ── Edit ──
+        edit(fgi, fsi) {
+            this._closeSwipe();
+            const s = this.filteredGroups[fgi]?.shortcuts[fsi];
+            if (!s) return;
+            let foundGi = -1, foundSi = -1;
+            for (const [i, g] of this.groups.entries()) {
+                const idx = g.shortcuts.indexOf(s);
+                if (idx !== -1) { foundGi = i; foundSi = idx; break; }
+            }
+            if (foundGi === -1) return;
+            this.editTarget = { gi: foundGi, si: foundSi };
+            const group = this.groups[foundGi];
+            this.form.service = s.service;
+            this.form.stopNumber = s.stopNumber;
+            this.form.name = s.name || '';
+            this.form.groupName = group.name;
+            this.form.newGroupName = '';
+            this.showAddModal = true;
+        },
+
         // ── Swipe ──
         touchStart(e, gi, si) {
             if (this.swiped && this.swiped.gi === gi && this.swiped.si === si) { this._closeSwipe(); return; }
@@ -228,13 +313,80 @@ function busApp() {
             const t = this._touchTarget;
             this._touchTarget = null;
             if (!t) return;
-            if (diff > this._swipeThreshold) this.swiped = t;
-            else if (diff < -this._swipeThreshold) this._closeSwipe();
+            if (diff > this._swipeThreshold) { this.swiped = t; this.swipedDir = 'left'; }
+            else if (diff < -this._swipeThreshold) { this.swiped = t; this.swipedDir = 'right'; }
         },
         _closeSwipe() {
             this.swiped = null;
+            this.swipedDir = null;
             this._touchTarget = null;
             this._touchStartX = this._touchCurX = 0;
+        },
+
+        // ── Drag-and-drop ──
+        dragStart(e, gi, si) {
+            if (this.searchTerm) return;
+            if (!this.filteredGroups[gi]?.shortcuts[si]) return;
+            e.preventDefault();
+            this._closeSwipe();
+            const cardEl = e.currentTarget.closest('.card');
+            const cardHeight = cardEl?.offsetHeight || 60;
+            const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
+            this.dragging = { gi, si, targetSi: si, sourceSi: si, startY: clientY, cardHeight };
+            this._addDragListeners();
+        },
+
+        dragMove(e) {
+            if (!this.dragging) return;
+            e.preventDefault();
+            const y = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+            const diff = y - this.dragging.startY;
+            const threshold = this.dragging.cardHeight * 0.5;
+            if (Math.abs(diff) < threshold) return;
+            const group = this.groups[this.dragging.gi];
+            if (!group) return;
+            const direction = diff > 0 ? 1 : -1;
+            const newSi = this.dragging.targetSi + direction;
+            if (newSi < 0 || newSi >= group.shortcuts.length) return;
+            const item = group.shortcuts.splice(this.dragging.targetSi, 1)[0];
+            group.shortcuts.splice(newSi, 0, item);
+            this.dragging.targetSi = newSi;
+            this.dragging.startY = y;
+            this.filteredGroups = [...this.groups];
+        },
+
+        dragEnd() {
+            if (!this.dragging) return;
+            this._removeDragListeners();
+            if (this.dragging.sourceSi !== this.dragging.targetSi) {
+                this._save();
+                this._toast('Shortcut reordered', 'success');
+            }
+            this.dragging = null;
+        },
+
+        _addDragListeners() {
+            this._dragMoveHandler = e => this.dragMove(e);
+            this._dragEndHandler = e => this.dragEnd(e);
+            document.addEventListener('mousemove', this._dragMoveHandler);
+            document.addEventListener('mouseup', this._dragEndHandler);
+            document.addEventListener('touchmove', this._dragMoveHandler, { passive: false });
+            document.addEventListener('touchend', this._dragEndHandler);
+            document.body.classList.add('is-dragging');
+        },
+
+        _removeDragListeners() {
+            if (this._dragMoveHandler) {
+                document.removeEventListener('mousemove', this._dragMoveHandler);
+                document.removeEventListener('touchmove', this._dragMoveHandler);
+            }
+            if (this._dragEndHandler) {
+                document.removeEventListener('mouseup', this._dragEndHandler);
+                document.removeEventListener('touchend', this._dragEndHandler);
+            }
+            document.body.classList.remove('is-dragging');
+            this._dragMoveHandler = null;
+            this._dragEndHandler = null;
         },
 
         // ── Arrivals ──

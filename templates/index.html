@@ -74,14 +74,31 @@
             </div>
 
             <template x-for="(s, si) in group.shortcuts" :key="si">
-                <div class="card-outer" :class="{ swiped: swiped && swiped.gi === gi && swiped.si === si }">
-                    <div class="card-swipe-bg" @click.stop="deleteShortcut(gi, si)">
+                <div class="card-outer"
+                    :class="{
+                        'swiped-left': swiped && swiped.gi === gi && swiped.si === si && swipedDir === 'left',
+                        'swiped-right': swiped && swiped.gi === gi && swiped.si === si && swipedDir === 'right'
+                    }">
+                    <div class="card-swipe-bg card-swipe-bg-right" @click.stop="deleteShortcut(gi, si)">
                         <i class="fas fa-trash"></i> Delete
                     </div>
-                    <div class="card" :class="{ stale: isStale(s) }"
+                    <div class="card-swipe-bg card-swipe-bg-left" @click.stop="edit(gi, si)">
+                        <i class="fas fa-pen"></i> Edit
+                    </div>
+                    <div class="card"
+                        :class="{ stale: isStale(s), 'card-dragging': dragging && dragging.gi === gi && dragging.targetSi === si }"
                         @touchstart.passive="touchStart($event, gi, si)"
                         @touchmove="touchMove($event)"
                         @touchend="touchEnd()">
+                        <button class="card-drag-handle" x-show="!searchTerm"
+                            @mousedown.prevent.stop="dragStart($event, gi, si)"
+                            @touchstart.prevent.stop="dragStart($event, gi, si)"
+                            title="Drag to reorder">
+                            <i class="fas fa-grip-vertical"></i>
+                        </button>
+                        <button class="card-edit" @click.stop="edit(gi, si)" title="Edit">
+                            <i class="fas fa-pencil"></i>
+                        </button>
                         <button class="card-del" @click.stop="deleteShortcut(gi, si)" title="Delete">
                             <i class="fas fa-times"></i>
                         </button>
@@ -253,7 +270,7 @@
     <div class="modal-backdrop" x-show="showAddModal" x-cloak @click.self="showAddModal = false">
         <div class="modal-sheet">
             <div class="modal-head">
-                <h2>Add Shortcut</h2>
+                <h2 x-text="editTarget ? 'Edit Shortcut' : 'Add Shortcut'"></h2>
                 <button class="modal-close" @click="showAddModal = false">&times;</button>
             </div>
             <div class="modal-body">
@@ -285,7 +302,9 @@
                 </div>
                 <div class="modal-actions">
                     <button class="btn btn-ghost" @click="showAddModal = false">Cancel</button>
-                    <button class="btn btn-primary" @click="add">Add Shortcut</button>
+                    <button class="btn btn-primary" @click="add">
+                        <span x-text="editTarget ? 'Save Changes' : 'Add Shortcut'"></span>
+                    </button>
                 </div>
             </div>
         </div>

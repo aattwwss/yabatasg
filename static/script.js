@@ -346,7 +346,7 @@ function busApp() {
         },
         formatArrival(v) {
             if (v == null || v < 0) return '--';
-            return v + 'm';
+            return v + '';
         },
         isStale(s) { return s.lastFetched && (Date.now() - s.lastFetched) > STALE_MS; },
 

@@ -3,7 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>yabata</title>
+    <title>yabata — Singapore Bus Arrival Timings | Real-Time LTA DataMall</title>
+    <meta name="description" content="Yet Another Bus Arrival Timing Application — check real-time bus arrival times for any bus stop in Singapore. Powered by LTA DataMall. Features nearby stop geolocation, shortcut groups, drag-to-reorder, and cross-device sync.">
+    <meta name="keywords" content="Singapore bus arrival, bus timing, LTA DataMall, bus stop, real-time bus, Singapore public transport, bus tracker, SBS Transit, SMRT, Tower Transit, Go-Ahead Singapore">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://yabatasg.com">
+    <meta property="og:title" content="yabata — Singapore Bus Arrival Timings">
+    <meta property="og:description" content="Check real-time bus arrival times for any bus stop in Singapore. Fast, lightweight, works on any device.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://yabatasg.com">
+    <meta property="og:site_name" content="yabata">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="yabata — Singapore Bus Arrival Timings">
+    <meta name="twitter:description" content="Check real-time bus arrival times for any bus stop in Singapore. Powered by LTA DataMall.">
     <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAQAAEABAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAMz/AGnd+gD8/v8ACgoKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEREREAAAAAEERERFAAAAEESIiIRQAAAQSREQiFAAABBIxEUIUAAAEEjERQhQAAAQSMRFCFAAABBIxEUIUAAAEEjERQhQAAAQSMRFCFAAABBIxEUIUAAAEEjERQhQAAAQRIzQhFAAAAEERERFAAAAABBERFAAAAAAARERAAAD4DwAA8AcAAOADAADgAwAA4AMAAOADAADgAwAA4AMAAOADAADgAwAA4AMAAOADAADgAwAA8AcAAPgPAAD8HwAA">
     <link rel="manifest" href="static/manifest.json?v={{.Manifest}}">
     <link rel="apple-touch-icon" sizes="180x180" href="static/icon-180.png?v={{.Icon180}}">
@@ -29,17 +41,35 @@
             <button class="btn btn-ghost" @click="showNearby()" x-show="!nearbyView">
                 <i class="fas fa-location-dot"></i> <span>Nearby</span>
             </button>
-            <button class="btn-icon" @click="openSync()" aria-label="Sync devices" title="Sync devices">
-                <i class="fas fa-arrows-rotate" :style="authToken ? 'color: #4f6ef7' : 'opacity: 0.5'"></i>
-            </button>
-            <button class="btn-icon" @click="toggleTheme()" :aria-label="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'">
-                <i class="fas" :class="theme === 'dark' ? 'fa-sun' : 'fa-moon'"></i>
-            </button>
+            <div class="header-pill">
+                <button class="btn-icon" @click="openSync()" aria-label="Sync devices" title="Sync devices">
+                    <i class="fas fa-arrows-rotate" :style="authToken ? 'color: #4f6ef7' : 'opacity: 0.5'"></i>
+                </button>
+                <button class="btn-icon" @click="toggleTheme()" :aria-label="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'">
+                    <i class="fas" :class="theme === 'dark' ? 'fa-sun' : 'fa-moon'"></i>
+                </button>
+            </div>
             <button class="btn btn-primary" @click="showAddModal = true" x-show="!nearbyView">
                 <i class="fas fa-plus"></i> <span>Add</span>
             </button>
         </div>
     </header>
+
+    <div class="landing-hero" x-init="$el.remove()">
+        <h1>yabata — Singapore Bus Arrival Timings</h1>
+        <p><strong>Yet Another Bus Arrival Timing Application.</strong> Real-time bus arrival estimates for every bus stop in Singapore, powered by the Land Transport Authority (LTA) DataMall API.</p>
+        <p>Add your frequently used bus services, organise them into groups, and see when your next three buses are arriving — all on one screen. Use the <strong>Nearby</strong> feature to find bus stops around you with live arrival information for all services at each stop.</p>
+        <ul>
+            <li>Real-time arrival timings from LTA DataMall</li>
+            <li>Nearby bus stop finder with geolocation</li>
+            <li>Shortcut groups — organise by route, stop, or destination</li>
+            <li>Drag-and-drop reordering</li>
+            <li>Cross-device sync with a memorable phrase</li>
+            <li>Light and dark theme</li>
+            <li>Works on any device — installable as a PWA</li>
+        </ul>
+        <p>Supports all bus operators in Singapore: SBS Transit, SMRT, Tower Transit, and Go-Ahead Singapore.</p>
+    </div>
 
     <div x-show="!nearbyView">
 
@@ -72,8 +102,8 @@
                 <button class="group-del" x-sort:ignore @click="askDeleteGroup(gi)" title="Delete group">
                     <i class="fas fa-trash"></i>
                 </button>
+                <span x-sort:handle style="display:none" aria-hidden="true"></span>
             </div>
-
             <template x-for="(s, si) in group.shortcuts" :key="s.service + '|' + s.stopNumber">
                 <div class="card-outer" x-sort:item="s.service + '|' + s.stopNumber"
                     :class="{
@@ -90,33 +120,34 @@
                         @touchstart.passive="touchStart($event, gi, si)"
                         @touchmove="touchMove($event)"
                         @touchend="touchEnd()">
-                        <button class="card-drag-handle" x-sort:handle x-show="!searchTerm"
-                            title="Drag to reorder">
+                        <div class="card-gutter" x-sort:handle x-show="!searchTerm" title="Drag to reorder">
                             <i class="fas fa-grip-vertical"></i>
-                        </button>
-                        <button class="card-edit" x-sort:ignore @click.stop="edit(gi, si)" title="Edit">
-                            <i class="fas fa-pencil"></i>
-                        </button>
-                        <button class="card-del" x-sort:ignore @click.stop="deleteShortcut(gi, si)" title="Delete">
-                            <i class="fas fa-times"></i>
-                        </button>
-                        <div class="card-row">
-                            <span class="card-service" x-text="s.service"></span>
-                            <div class="arrivals">
-                                <span class="arrival" :class="arrivalClass(s.arrivals[0])"
-                                    x-text="formatArrival(s.arrivals[0])"></span>
-                                <span class="arrival" :class="arrivalClass(s.arrivals[1])"
-                                    x-text="formatArrival(s.arrivals[1])"></span>
-                                <span class="arrival" :class="arrivalClass(s.arrivals[2])"
-                                    x-text="formatArrival(s.arrivals[2])"></span>
-                            </div>
                         </div>
-                        <div class="card-meta">
-                            <span x-text="s.name || 'Unnamed'"></span>
-                            <span class="sep">·</span>
-                            <span x-text="'Stop ' + s.stopNumber"></span>
-                            <span class="sep" x-show="s.lastFetched">·</span>
-                            <span class="updated" x-show="s.lastFetched" x-text="relativeTime(s.lastFetched)"></span>
+                        <div class="card-body">
+                            <div class="card-row">
+                                <span class="card-service" x-text="s.service"></span>
+                                <div class="arrivals">
+                                    <span class="arrival" :class="arrivalClass(s.arrivals[0])"
+                                        x-text="formatArrival(s.arrivals[0])"></span>
+                                    <span class="arrival" :class="arrivalClass(s.arrivals[1])"
+                                        x-text="formatArrival(s.arrivals[1])"></span>
+                                    <span class="arrival" :class="arrivalClass(s.arrivals[2])"
+                                        x-text="formatArrival(s.arrivals[2])"></span>
+                                </div>
+                            </div>
+                            <div class="card-meta">
+                                <span x-text="s.name || 'Unnamed'"></span>
+                                <span class="sep">·</span>
+                                <span x-text="'Stop ' + s.stopNumber"></span>
+                                <span class="sep" x-show="s.lastFetched">·</span>
+                                <span class="updated" x-show="s.lastFetched" x-text="relativeTime(s.lastFetched)"></span>
+                                <button class="card-edit" x-sort:ignore @click.stop="edit(gi, si)" title="Edit">
+                                    <i class="fas fa-pencil"></i>
+                                </button>
+                                <button class="card-del" x-sort:ignore @click.stop="deleteShortcut(gi, si)" title="Delete">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

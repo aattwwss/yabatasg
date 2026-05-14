@@ -132,6 +132,28 @@ func main() {
 	stopDetailHandler := handler.NewStopDetail(ltaClient)
 	mux.Handle("GET /api/v1/stops/{code}/arrivals", corsMiddleware(stopDetailHandler))
 
+	mux.HandleFunc("GET /api/v1/stops/{code}", corsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		code := r.PathValue("code")
+		if code == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "stop code is required"})
+			return
+		}
+		stop, err := stopsStore.GetStop(code)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+		if stop == nil {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "stop not found"})
+			return
+		}
+		json.NewEncoder(w).Encode(stop)
+	})))
+
 	authHandler := handler.NewAuth(stopsStore)
 	mux.Handle("POST /api/v1/auth/register", corsMiddleware(http.HandlerFunc(authHandler.Register)))
 	mux.Handle("POST /api/v1/auth/link", corsMiddleware(http.HandlerFunc(authHandler.Link)))

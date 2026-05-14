@@ -24,12 +24,12 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
     <link rel="stylesheet" href="static/style.css?v={{.StyleCSS}}">
 </head>
-<body>
+<body x-data="busApp()"
+      x-effect="_modalScrollLock(showAddModal || showConfirmModal || showSyncModal)"
+      @keydown.escape.window="showAddModal = false; showConfirmModal = false; showSyncModal = false; _closeSwipe()"
+      @keydown.ctrl.k.window.prevent="$refs.searchInput.focus()">
 
-<div class="container" x-data="busApp()"
-    x-effect="document.body.classList.toggle('modal-open', showAddModal || showConfirmModal)"
-    @keydown.escape.window="showAddModal = false; showConfirmModal = false; showSyncModal = false; _closeSwipe()"
-    @keydown.ctrl.k.window.prevent="$refs.searchInput.focus()">
+<div class="container">
 
     <!-- Header -->
     <header class="header">
@@ -43,7 +43,7 @@
             </button>
             <div class="header-pill">
                 <button class="btn-icon" @click="openSync()" aria-label="Sync devices" title="Sync devices">
-                    <i class="fas fa-arrows-rotate" :style="authToken ? 'color: #4f6ef7' : 'opacity: 0.5'"></i>
+                    <i class="fas fa-link" :style="authToken ? 'color: #4f6ef7' : 'opacity: 0.5'"></i>
                 </button>
                 <button class="btn-icon" @click="toggleTheme()" :aria-label="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'">
                     <i class="fas" :class="theme === 'dark' ? 'fa-sun' : 'fa-moon'"></i>
@@ -87,10 +87,27 @@
     <template x-if="loading && groups.length === 0">
         <div class="skeletons">
             <div class="sk-group"><div class="sk-name"></div></div>
-            <div class="sk-card"><div class="sk-service"></div><div class="sk-arrivals"><div></div><div></div><div></div></div></div>
-            <div class="sk-card"><div class="sk-service"></div><div class="sk-arrivals"><div></div><div></div><div></div></div></div>
+            <div class="sk-card">
+                <div class="sk-stop-main">
+                    <div class="sk-road"></div>
+                    <div class="sk-desc"></div>
+                </div>
+                <div class="sk-code"></div>
+            </div>
+            <div class="sk-card">
+                <div class="sk-stop-main">
+                    <div class="sk-road short"></div>
+                </div>
+                <div class="sk-code"></div>
+            </div>
             <div class="sk-group"><div class="sk-name short"></div></div>
-            <div class="sk-card"><div class="sk-service"></div><div class="sk-arrivals"><div></div><div></div><div></div></div></div>
+            <div class="sk-card">
+                <div class="sk-stop-main">
+                    <div class="sk-road"></div>
+                    <div class="sk-desc"></div>
+                </div>
+                <div class="sk-code"></div>
+            </div>
         </div>
     </template>
 
@@ -104,8 +121,8 @@
                 </button>
                 <span x-sort:handle style="display:none" aria-hidden="true"></span>
             </div>
-            <template x-for="(s, si) in group.shortcuts" :key="s.service + '|' + s.stopNumber">
-                <div class="card-outer" x-sort:item="s.service + '|' + s.stopNumber"
+            <template x-for="(s, si) in group.shortcuts" :key="s.stopNumber">
+                <div class="card-outer" x-sort:item="s.stopNumber"
                     :class="{
                         'swiped-left': swiped && swiped.gi === gi && swiped.si === si && swipedDir === 'left',
                         'swiped-right': swiped && swiped.gi === gi && swiped.si === si && swipedDir === 'right'
@@ -123,31 +140,24 @@
                         <div class="card-gutter" x-sort:handle x-show="!searchTerm" title="Drag to reorder">
                             <i class="fas fa-grip-vertical"></i>
                         </div>
-                        <div class="card-body">
-                            <div class="card-row">
-                                <span class="card-service" x-text="s.service"></span>
-                                <div class="arrivals">
-                                    <span class="arrival" :class="arrivalClass(s.arrivals[0])"
-                                        x-text="formatArrival(s.arrivals[0])"></span>
-                                    <span class="arrival" :class="arrivalClass(s.arrivals[1])"
-                                        x-text="formatArrival(s.arrivals[1])"></span>
-                                    <span class="arrival" :class="arrivalClass(s.arrivals[2])"
-                                        x-text="formatArrival(s.arrivals[2])"></span>
-                                </div>
+                        <div class="card-body" @click="viewShortcutDetail(gi, si)">
+                            <div class="card-stop-main">
+                                <span class="card-stop-road" x-text="s.roadName || s.name || 'Stop ' + s.stopNumber"></span>
+                                <span class="card-stop-desc" x-show="s.name && s.roadName" x-text="s.name"></span>
+                                <span class="card-stop-desc" x-show="!s.roadName && s.description" x-text="s.description"></span>
                             </div>
-                            <div class="card-meta">
-                                <span x-text="s.name || 'Unnamed'"></span>
-                                <span class="sep">·</span>
-                                <span x-text="'Stop ' + s.stopNumber"></span>
-                                <span class="sep" x-show="s.lastFetched">·</span>
-                                <span class="updated" x-show="s.lastFetched" x-text="relativeTime(s.lastFetched)"></span>
-                                <button class="card-edit" x-sort:ignore @click.stop="edit(gi, si)" title="Edit">
-                                    <i class="fas fa-pencil"></i>
-                                </button>
-                                <button class="card-del" x-sort:ignore @click.stop="deleteShortcut(gi, si)" title="Delete">
-                                    <i class="fas fa-times"></i>
-                                </button>
+                            <div class="card-stop-right">
+                                <span class="card-stop-code" x-text="s.stopNumber"></span>
+                                <i class="fas fa-chevron-right"></i>
                             </div>
+                        </div>
+                        <div class="card-actions">
+                            <button class="card-edit" x-sort:ignore @click.stop="edit(gi, si)" title="Edit">
+                                <i class="fas fa-pencil"></i>
+                            </button>
+                            <button class="card-del" x-sort:ignore @click.stop="deleteShortcut(gi, si)" title="Delete">
+                                <i class="fas fa-times"></i>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -159,7 +169,7 @@
     <div class="empty-state" x-show="groups.length === 0 && !loading">
         <div class="empty-icon"><i class="fas fa-bus"></i></div>
         <h2>No shortcuts yet</h2>
-        <p>Add a bus service and stop number to start tracking arrivals.</p>
+        <p>Add a bus stop to start tracking arrivals for all services.</p>
         <button class="btn btn-primary" @click="showAddModal = true">
             <i class="fas fa-plus"></i> Add your first
         </button>
@@ -172,7 +182,7 @@
     </div>
 
     <!-- Footer -->
-    <footer class="footer" x-show="groups.length > 0">
+    <footer class="footer">
         <button @click="_fetchAll()"><i class="fas fa-sync-alt"></i> Refresh</button>
         <button @click="exportData()"><i class="fas fa-download"></i> Export</button>
         <button @click="$refs.importFile.click()"><i class="fas fa-upload"></i> Import</button>
@@ -243,7 +253,9 @@
                 <span class="nearby-stop-road" x-text="selectedStop?.roadName"></span>
                 <span class="nearby-stop-code" x-text="selectedStop?.code"></span>
             </div>
-            <div></div>
+            <button class="btn btn-ghost" @click.stop="addShortcutFromStop(selectedStop.code)" style="font-size:13px;padding:6px 12px;white-space:nowrap;">
+                <i class="fas fa-plus"></i> Add Stop
+            </button>
         </div>
 
         <div x-show="selectedStop?.loading" class="empty-state">
@@ -275,15 +287,50 @@
                         </div>
                         <div class="stop-service-meta">
                             <span x-text="svc.operator"></span>
-                            <button class="btn btn-ghost" style="padding:6px 10px;font-size:12px;margin-left:auto;" @click.stop="addShortcutFromStop(svc.serviceNo, selectedStop.code)">
-                                <i class="fas fa-plus"></i> Add
-                            </button>
                         </div>
                     </div>
                 </template>
             </div>
         </template>
     </div>
+
+    <!-- ── Shortcut Stop Detail ── -->
+    <div x-show="nearbyView === 'shortcutDetail'" x-cloak>
+        <div class="nearby-header">
+            <button class="btn-icon" @click="backToHome()"><i class="fas fa-arrow-left"></i></button>
+            <div class="nearby-header-title">
+                <span class="nearby-stop-code" x-text="selectedStop?.code" style="font-size:18px;font-weight:700;color:var(--text);"></span>
+            </div>
+            <div></div>
+        </div>
+
+        <div x-show="!selectedStop?.services || selectedStop.services.length === 0" class="empty-state">
+            <div class="empty-icon"><i class="fas fa-clock"></i></div>
+            <p>No buses arriving at this stop right now</p>
+        </div>
+
+        <template x-if="selectedStop?.services && selectedStop.services.length > 0">
+            <div class="stop-services">
+                <template x-for="svc in selectedStop.services" :key="svc.serviceNo">
+                    <div class="stop-service-card">
+                        <div class="stop-service-row">
+                            <span class="card-service" x-text="svc.serviceNo" style="font-size: 28px;"></span>
+                            <div class="arrivals">
+                                <span class="arrival" :class="arrivalClass(svc.next1)" x-text="formatArrival(svc.next1)"></span>
+                                <span class="arrival" :class="arrivalClass(svc.next2)" x-text="formatArrival(svc.next2)"></span>
+                                <span class="arrival" :class="arrivalClass(svc.next3)" x-text="formatArrival(svc.next3)"></span>
+                            </div>
+                        </div>
+                        <div class="stop-service-meta">
+                            <span x-text="svc.operator"></span>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </template>
+    </div>
+
+</div>
 
     <!-- Toasts -->
     <div class="toast-container">
@@ -303,10 +350,6 @@
                 <button class="modal-close" @click="showAddModal = false">&times;</button>
             </div>
             <div class="modal-body">
-                <div class="field">
-                    <label>Bus Service Number</label>
-                    <input type="text" x-model="form.service" @input="onlyDigits" placeholder="e.g. 188" autocomplete="off">
-                </div>
                 <div class="field">
                     <label>Bus Stop Number</label>
                     <input type="text" x-model="form.stopNumber" @input="onlyDigits" placeholder="e.g. 43219" autocomplete="off">
@@ -452,8 +495,6 @@
             </div>
         </div>
     </div>
-
-</div>
 
 <script src="static/script.js?v={{.ScriptJS}}"></script>
 <script>

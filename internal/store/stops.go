@@ -60,6 +60,26 @@ func New(dbPath string) (*Store, error) {
 	return &Store{db: db}, nil
 }
 
+type Stop struct {
+	Code        string `json:"code"`
+	RoadName    string `json:"roadName"`
+	Description string `json:"description"`
+}
+
+func (s *Store) GetStop(code string) (*Stop, error) {
+	var stop Stop
+	err := s.db.QueryRow(
+		`SELECT code, road_name, description FROM bus_stops WHERE code = ?`, code,
+	).Scan(&stop.Code, &stop.RoadName, &stop.Description)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &stop, nil
+}
+
 func (s *Store) Sync(stops []lta.BusStop) error {
 	tx, err := s.db.Begin()
 	if err != nil {

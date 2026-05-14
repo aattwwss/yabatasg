@@ -19,7 +19,7 @@ function busApp() {
         confirmAction: null,
 
         // form
-        form: { service: '', stopNumber: '', name: '', groupName: '', newGroupName: '' },
+        form: { stopNumber: '', name: '', groupName: '', newGroupName: '' },
 
         // swipe
         swiped: null,
@@ -55,19 +55,33 @@ function busApp() {
         linkError: '',
         _syncDebounce: null,
 
+        _modalScrollLock(open) {
+            if (open && !document.body.classList.contains('modal-open')) {
+                const y = window.scrollY;
+                document.body.dataset.scrollY = y;
+                document.body.style.top = `-${y}px`;
+                document.body.classList.add('modal-open');
+            } else if (!open && document.body.classList.contains('modal-open')) {
+                document.body.classList.remove('modal-open');
+                const y = Math.abs(parseInt(document.body.style.top) || 0);
+                document.body.style.top = '';
+                window.scrollTo(0, y);
+            }
+        },
+
         init() {
             this._loadTheme();
             this._loadAuth();
             this._load();
             this.filteredGroups = [...this.groups];
-            this._fetchAll().then(() => { this.loading = false; });
+            this._fetchAll().then(() => { this.loading = false; this._backfillStops(); });
             if (this.authToken) {
                 this._loadFromServer();
             }
-            this.$el.addEventListener('update-arrivals', e => {
-                const { groupIndex, shortcutIndex, arrivals, fetchedAt } = e.detail;
+            this.$el.addEventListener('update-services', e => {
+                const { groupIndex, shortcutIndex, services, fetchedAt } = e.detail;
                 const s = this.groups[groupIndex]?.shortcuts[shortcutIndex];
-                if (s) { s.arrivals = arrivals; s.lastFetched = fetchedAt; }
+                if (s) { s.services = services; s.lastFetched = fetchedAt; }
             });
             this._pollTimer = setInterval(() => this._fetchAll(), POLL_MS);
             this._onPopStateBound = this._onPopState.bind(this);
@@ -86,6 +100,12 @@ function busApp() {
                 if (e.state.appView === 'stopDetail' && e.state.code) {
                     this.selectedStop = { code: e.state.code, roadName: e.state.roadName, services: [], loading: true, error: '' };
                     this._loadStopDetail(e.state.code, e.state.roadName);
+                }
+                if (e.state.appView === 'shortcutDetail' && e.state.gi !== undefined) {
+                    const s = this.groups[e.state.gi]?.shortcuts[e.state.si];
+                    if (s) {
+                        this.selectedStop = { code: s.stopNumber, roadName: s.name || s.roadName || `Stop ${s.stopNumber}`, services: s.services, loading: false, error: '' };
+                    }
                 }
             } else {
                 this.nearbyView = '';
@@ -114,7 +134,21 @@ function busApp() {
             } catch { this.groups = []; }
             for (const g of this.groups) {
                 for (const s of g.shortcuts) {
-                    if (!s.arrivals) s.arrivals = [null, null, null];
+                    // Migrate old per-service shortcuts to per-stop format
+                    if (s.service !== undefined) {
+                        s.services = [{
+                            serviceNo: s.service,
+                            operator: '',
+                            next1: (s.arrivals && s.arrivals[0] != null) ? s.arrivals[0] : null,
+                            next2: (s.arrivals && s.arrivals[1] != null) ? s.arrivals[1] : null,
+                            next3: (s.arrivals && s.arrivals[2] != null) ? s.arrivals[2] : null
+                        }];
+                        delete s.service;
+                        delete s.arrivals;
+                    }
+                    if (!s.services) s.services = [];
+                    s.roadName ??= '';
+                    s.description ??= '';
                     s.lastFetched ??= 0;
                 }
             }
@@ -123,7 +157,7 @@ function busApp() {
         _save() {
             const data = this.groups.map(g => ({
                 name: g.name,
-                shortcuts: g.shortcuts.map(s => ({ service: s.service, stopNumber: s.stopNumber, name: s.name }))
+                shortcuts: g.shortcuts.map(s => ({ stopNumber: s.stopNumber, name: s.name, roadName: s.roadName, description: s.description }))
             }));
             localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
             if (this.authToken) this._syncToServer();
@@ -137,8 +171,10 @@ function busApp() {
             this.filteredGroups = this.groups.reduce((acc, g) => {
                 const matches = g.shortcuts.filter(s =>
                     s.name.toLowerCase().includes(t) ||
-                    s.service.includes(t) ||
-                    s.stopNumber.includes(t)
+                    s.stopNumber.includes(t) ||
+                    s.roadName?.toLowerCase().includes(t) ||
+                    s.description?.toLowerCase().includes(t) ||
+                    (s.services || []).some(svc => svc.serviceNo.includes(t))
                 );
                 if (g.name.toLowerCase().includes(t) || matches.length) {
                     acc.push({ ...g, shortcuts: matches.length ? matches : g.shortcuts });
@@ -148,10 +184,30 @@ function busApp() {
         },
 
         // ── Add ──
-        add() {
+        async _backfillStops() {
+            for (const g of this.groups) {
+                for (const s of g.shortcuts) {
+                    if (!s.roadName) {
+                        const info = await this._lookupStop(s.stopNumber);
+                        if (info) { s.roadName = info.roadName; s.description = info.description; }
+                    }
+                }
+            }
+            this._save();
+        },
+
+        async _lookupStop(code) {
+            try {
+                const r = await fetch(`/api/v1/stops/${code}`);
+                if (r.ok) return await r.json();
+            } catch {}
+            return null;
+        },
+
+        async add() {
             this._closeSwipe();
             const f = this.form;
-            if (!f.service || !f.stopNumber) { this._toast('Fill in both service and stop number', 'error'); return; }
+            if (!f.stopNumber) { this._toast('Fill in the stop number', 'error'); return; }
 
             // Edit path
             if (this.editTarget) {
@@ -172,16 +228,20 @@ function busApp() {
                 const targetGroup = this.groups.find(g => g.name === targetGroupName);
                 const isSameGroup = targetGroup === oldGroup;
                 const hasDup = isSameGroup
-                    ? oldGroup.shortcuts.some((x, i) => i !== si && x.service === f.service && x.stopNumber === f.stopNumber)
-                    : targetGroup.shortcuts.some(x => x.service === f.service && x.stopNumber === f.stopNumber);
+                    ? oldGroup.shortcuts.some((x, i) => i !== si && x.stopNumber === f.stopNumber)
+                    : targetGroup.shortcuts.some(x => x.stopNumber === f.stopNumber);
                 if (hasDup) { this._toast('Already exists in this group', 'error'); return; }
 
                 const s = oldGroup.shortcuts[si];
-                s.service = f.service;
+                const oldCode = s.stopNumber;
                 s.stopNumber = f.stopNumber;
-                s.name = f.name.trim() || `Bus ${f.service} - Stop ${f.stopNumber}`;
-                s.arrivals = [null, null, null];
+                s.name = f.name.trim();
+                s.services = [];
                 s.lastFetched = 0;
+                if (s.stopNumber !== oldCode || !s.roadName) {
+                    const info = await this._lookupStop(f.stopNumber);
+                    if (info) { s.roadName = info.roadName; s.description = info.description; }
+                }
 
                 if (!isSameGroup) {
                     oldGroup.shortcuts.splice(si, 1);
@@ -214,17 +274,20 @@ function busApp() {
             const group = this.groups.find(g => g.name === groupName);
             if (!group) { this._toast('Group not found', 'error'); return; }
 
-            if (group.shortcuts.some(s => s.service === f.service && s.stopNumber === f.stopNumber)) {
+            if (group.shortcuts.some(s => s.stopNumber === f.stopNumber)) {
                 this._toast('Already exists in this group', 'error'); return;
             }
 
             const shortcut = {
-                service: f.service,
                 stopNumber: f.stopNumber,
-                name: f.name.trim() || `Bus ${f.service} - Stop ${f.stopNumber}`,
-                arrivals: [null, null, null],
+                name: f.name.trim(),
+                services: [],
+                roadName: '',
+                description: '',
                 lastFetched: 0
             };
+            const info = await this._lookupStop(f.stopNumber);
+            if (info) { shortcut.roadName = info.roadName; shortcut.description = info.description; }
             group.shortcuts.push(shortcut);
             const gi = this.groups.indexOf(group);
             const si = group.shortcuts.length - 1;
@@ -234,11 +297,11 @@ function busApp() {
             this._resetForm();
             this.filteredGroups = [...this.groups];
             this._toast('Shortcut added', 'success');
-            this._fetchOne(shortcut, gi, si);
+            this._fetchOne(f.stopNumber, [{ gi, si }]);
         },
 
         _resetForm() {
-            this.form = { service: '', stopNumber: '', name: '', groupName: '', newGroupName: '' };
+            this.form = { stopNumber: '', name: '', groupName: '', newGroupName: '' };
         },
 
         // ── Delete ──
@@ -285,7 +348,6 @@ function busApp() {
             if (foundGi === -1) return;
             this.editTarget = { gi: foundGi, si: foundSi };
             const group = this.groups[foundGi];
-            this.form.service = s.service;
             this.form.stopNumber = s.stopNumber;
             this.form.name = s.name || '';
             this.form.groupName = group.name;
@@ -323,10 +385,8 @@ function busApp() {
             if (!fgroup) return;
             const group = this.groups.find(g => g.name === fgroup.name);
             if (!group) return;
-            const [service, stopNumber] = item.split('|');
-            const oldIndex = group.shortcuts.findIndex(
-                s => s.service === service && s.stopNumber === stopNumber
-            );
+            const stopNumber = item;
+            const oldIndex = group.shortcuts.findIndex(s => s.stopNumber === stopNumber);
             if (oldIndex === -1) return;
             // $position counts the group-header DOM child at index 0, so it's
             // off by one relative to the 0-indexed shortcuts array.
@@ -427,40 +487,68 @@ function busApp() {
             }
         },
 
-        addShortcutFromStop(serviceNo, stopCode) {
-            this.form.service = serviceNo;
+        async addShortcutFromStop(stopCode) {
             this.form.stopNumber = stopCode;
-            this.form.name = `Bus ${serviceNo} - Stop ${stopCode}`;
+            this.form.name = '';
             this.form.groupName = this.groups.length > 0 ? this.groups[0].name : '';
             this.nearbyView = '';
             this.showAddModal = true;
+            const info = await this._lookupStop(stopCode);
+            if (info) { this.form.name = info.roadName || ''; }
+        },
+
+        viewShortcutDetail(gi, si) {
+            const s = this.groups[gi]?.shortcuts[si];
+            if (!s) return;
+            this._closeSwipe();
+            this.nearbyView = 'shortcutDetail';
+            this.selectedStop = {
+                code: s.stopNumber,
+                roadName: s.name || s.roadName || `Stop ${s.stopNumber}`,
+                services: s.services,
+                loading: false,
+                error: ''
+            };
+            history.pushState({ appView: 'shortcutDetail', gi, si }, '');
         },
 
         backToNearby() { history.back(); },
         backToHome() { history.back(); },
 
         async _fetchAll() {
-            const jobs = [];
+            const stopMap = new Map();
             for (const [gi, g] of this.groups.entries()) {
-                for (const [si, s] of g.shortcuts.entries()) jobs.push(this._fetchOne(s, gi, si));
+                for (const [si, s] of g.shortcuts.entries()) {
+                    if (!stopMap.has(s.stopNumber)) stopMap.set(s.stopNumber, []);
+                    stopMap.get(s.stopNumber).push({ gi, si });
+                }
+            }
+            const jobs = [];
+            for (const [stopNumber, targets] of stopMap) {
+                jobs.push(this._fetchOne(stopNumber, targets));
             }
             await Promise.allSettled(jobs);
         },
 
-        async _fetchOne(s, gi, si) {
-            const key = `${s.service}-${s.stopNumber}`;
+        async _fetchOne(stopNumber, targets) {
+            const key = stopNumber;
             try {
-                const r = await fetch(`/api/v1/busArrival?BusStopCode=${s.stopNumber}&ServiceNo=${s.service}`);
+                const r = await fetch(`/api/v1/stops/${stopNumber}/arrivals`);
                 if (!r.ok) throw new Error(`HTTP ${r.status}`);
                 const data = await r.json();
-                const arrivals = Array.isArray(data) && data.length >= 3 ? data : [null, null, null];
-                this.$dispatch('update-arrivals', { groupIndex: gi, shortcutIndex: si, arrivals, fetchedAt: Date.now() });
+                const services = data.services || [];
+                for (const { gi, si } of targets) {
+                    this.$dispatch('update-services', { groupIndex: gi, shortcutIndex: si, services, fetchedAt: Date.now() });
+                }
                 this._failCount[key] = 0;
             } catch {
-                this.$dispatch('update-arrivals', { groupIndex: gi, shortcutIndex: si, arrivals: [null, null, null], fetchedAt: Date.now() });
+                const services = [];
+                for (const { gi, si } of targets) {
+                    this.$dispatch('update-services', { groupIndex: gi, shortcutIndex: si, services, fetchedAt: Date.now() });
+                }
                 this._failCount[key] = (this._failCount[key] || 0) + 1;
                 if (this._failCount[key] === 3) {
-                    this._toast(`Cannot reach server for ${s.service}`, 'error');
+                    this._toast(`Cannot reach server for stop ${stopNumber}`, 'error');
                 }
             }
         },
@@ -487,8 +575,15 @@ function busApp() {
                             this._toast('Invalid group format', 'error'); return;
                         }
                         for (const s of g.shortcuts) {
-                            if (!s?.service || !s?.stopNumber) { this._toast('Invalid shortcut format', 'error'); return; }
-                            s.arrivals = [null, null, null];
+                            if (!s?.stopNumber) { this._toast('Invalid shortcut format', 'error'); return; }
+                            if (s.service !== undefined) {
+                                s.services = [{ serviceNo: s.service, operator: '', next1: null, next2: null, next3: null }];
+                                delete s.service;
+                                delete s.arrivals;
+                            }
+                            if (!s.services) s.services = [];
+                            s.roadName ??= '';
+                            s.description ??= '';
                             s.lastFetched = 0;
                         }
                     }
@@ -540,7 +635,7 @@ function busApp() {
             this._serializeGroups();
             const data = JSON.stringify(this.groups.map(g => ({
                 name: g.name,
-                shortcuts: g.shortcuts.map(s => ({ service: s.service, stopNumber: s.stopNumber, name: s.name }))
+                shortcuts: g.shortcuts.map(s => ({ stopNumber: s.stopNumber, name: s.name, roadName: s.roadName, description: s.description }))
             })));
             try {
                 const r = await fetch('/api/v1/auth/register', {
@@ -591,7 +686,13 @@ function busApp() {
                         this.groups = cfg;
                         for (const g of this.groups) {
                             for (const s of g.shortcuts) {
-                                s.arrivals = [null, null, null];
+                                if (s.service !== undefined) {
+                                    s.services = [{ serviceNo: s.service, operator: '', next1: null, next2: null, next3: null }];
+                                    delete s.service;
+                                }
+                                if (!s.services) s.services = [];
+                                s.roadName ??= '';
+                                s.description ??= '';
                                 s.lastFetched = 0;
                             }
                         }
@@ -707,10 +808,11 @@ function busApp() {
                 this.groups.map(g => ({
                     name: g.name,
                     shortcuts: g.shortcuts.map(s => ({
-                        service: s.service,
                         stopNumber: s.stopNumber,
                         name: s.name,
-                        arrivals: s.arrivals || [null, null, null],
+                        roadName: s.roadName || '',
+                        description: s.description || '',
+                        services: s.services || [],
                         lastFetched: s.lastFetched || 0
                     }))
                 }))
@@ -721,7 +823,7 @@ function busApp() {
         async _syncToServer() {
             const data = this.groups.map(g => ({
                 name: g.name,
-                shortcuts: g.shortcuts.map(s => ({ service: s.service, stopNumber: s.stopNumber, name: s.name }))
+                shortcuts: g.shortcuts.map(s => ({ stopNumber: s.stopNumber, name: s.name, roadName: s.roadName, description: s.description }))
             }));
             try {
                 await fetch('/api/v1/config', {
@@ -754,7 +856,13 @@ function busApp() {
                         this.groups = cfg;
                         for (const g of this.groups) {
                             for (const s of g.shortcuts) {
-                                s.arrivals = [null, null, null];
+                                if (s.service !== undefined) {
+                                    s.services = [{ serviceNo: s.service, operator: '', next1: null, next2: null, next3: null }];
+                                    delete s.service;
+                                }
+                                if (!s.services) s.services = [];
+                                s.roadName ??= '';
+                                s.description ??= '';
                                 s.lastFetched = 0;
                             }
                         }

@@ -33,7 +33,7 @@
 
     <!-- Header -->
     <header class="header">
-        <div class="header-left">
+        <div class="header-left" @click="nearbyView = ''; selectedStop = null; _stopStopPolling(); history.pushState({view: 'home'}, '', '/')" style="cursor:pointer;">
             <span class="logo"><i class="fas fa-bus"></i></span>
             <span class="app-name">yabata</span>
         </div>

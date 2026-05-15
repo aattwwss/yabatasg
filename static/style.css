@@ -641,7 +641,7 @@ body.sorting { user-select: none; -webkit-user-select: none; }
     background: var(--modal-backdrop);
     z-index: 1500;
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     justify-content: center;
     animation: fade-in 0.15s ease;
 }
@@ -651,24 +651,12 @@ body.sorting { user-select: none; -webkit-user-select: none; }
     background: var(--surface);
     width: 100%;
     max-width: 540px;
-    border-radius: 18px 18px 0 0;
-    box-shadow: 0 -6px 24px rgba(0,0,0,0.15);
-    animation: slide-up 0.25s cubic-bezier(0.2, 0, 0, 1);
+    border-radius: 18px;
+    box-shadow: 0 4px 32px rgba(0,0,0,0.18);
+    margin: 24px;
+    animation: modal-pop 0.2s cubic-bezier(0.2, 0, 0, 1);
 }
-@keyframes slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
-
-@media (min-width: 641px) {
-    .modal-backdrop {
-        align-items: center;
-    }
-    .modal-sheet {
-        border-radius: 18px;
-        box-shadow: 0 4px 32px rgba(0,0,0,0.18);
-        margin: 24px;
-        animation: modal-pop 0.2s cubic-bezier(0.2, 0, 0, 1);
-    }
-    @keyframes modal-pop { from { transform: scale(0.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-}
+@keyframes modal-pop { from { transform: scale(0.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
 .modal-head {
     display: flex;

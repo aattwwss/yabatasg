@@ -17,12 +17,12 @@
     <meta name="twitter:title" content="yabata — Singapore Bus Arrival Timings">
     <meta name="twitter:description" content="Check real-time bus arrival times for any bus stop in Singapore. Powered by LTA DataMall.">
     <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAQAAEABAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAMz/AGnd+gD8/v8ACgoKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEREREAAAAAEERERFAAAAEESIiIRQAAAQSREQiFAAABBIxEUIUAAAEEjERQhQAAAQSMRFCFAAABBIxEUIUAAAEEjERQhQAAAQSMRFCFAAABBIxEUIUAAAEEjERQhQAAAQRIzQhFAAAAEERERFAAAAABBERFAAAAAAARERAAAD4DwAA8AcAAOADAADgAwAA4AMAAOADAADgAwAA4AMAAOADAADgAwAA4AMAAOADAADgAwAA8AcAAPgPAAD8HwAA">
-    <link rel="manifest" href="static/manifest.json?v={{.Manifest}}">
-    <link rel="apple-touch-icon" sizes="180x180" href="static/icon-180.png?v={{.Icon180}}">
+    <link rel="manifest" href="/static/manifest.json?v={{.Manifest}}">
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/icon-180.png?v={{.Icon180}}">
     <script src="https://cdn.jsdelivr.net/npm/@alpinejs/sort@3.14.8/dist/cdn.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-    <link rel="stylesheet" href="static/style.css?v={{.StyleCSS}}">
+    <link rel="stylesheet" href="/static/style.css?v={{.StyleCSS}}">
 </head>
 <body x-data="busApp()"
       x-effect="_modalScrollLock(showAddModal || showConfirmModal || showSyncModal)"
@@ -33,12 +33,12 @@
 
     <!-- Header -->
     <header class="header">
-        <div class="header-left">
+        <div class="header-left" @click="nearbyView = ''; selectedStop = null; _stopStopPolling(); history.pushState({view: 'home'}, '', '/')" style="cursor:pointer;">
             <span class="logo"><i class="fas fa-bus"></i></span>
             <span class="app-name">yabata</span>
         </div>
         <div class="header-actions">
-            <button class="btn btn-ghost" @click="showNearby()" x-show="!nearbyView">
+            <button class="btn btn-ghost" @click="showNearby()">
                 <i class="fas fa-location-dot"></i> <span>Nearby</span>
             </button>
             <div class="header-pill">
@@ -49,7 +49,7 @@
                     <i class="fas" :class="theme === 'dark' ? 'fa-sun' : 'fa-moon'"></i>
                 </button>
             </div>
-            <button class="btn btn-primary" @click="showAddModal = true" x-show="!nearbyView">
+            <button class="btn btn-primary" @click="showAddModal = true">
                 <i class="fas fa-plus"></i> <span>Add</span>
             </button>
         </div>
@@ -140,7 +140,7 @@
                         <div class="card-gutter" x-sort:handle x-show="!searchTerm" title="Drag to reorder">
                             <i class="fas fa-grip-vertical"></i>
                         </div>
-                        <div class="card-body" @click="viewShortcutDetail(gi, si)">
+                        <div class="card-body" @click="viewShortcutDetail(s.stopNumber)">
                             <div class="card-stop-main">
                                 <span class="card-stop-road" x-text="s.roadName || s.name || 'Stop ' + s.stopNumber"></span>
                                 <span class="card-stop-desc" x-show="s.name && s.roadName" x-text="s.name"></span>
@@ -181,20 +181,12 @@
         <p>No shortcuts match "<span x-text="searchTerm"></span>"</p>
     </div>
 
-    <!-- Footer -->
-    <footer class="footer">
-        <button @click="_fetchAll()"><i class="fas fa-sync-alt"></i> Refresh</button>
-        <button @click="exportData()"><i class="fas fa-download"></i> Export</button>
-        <button @click="$refs.importFile.click()"><i class="fas fa-upload"></i> Import</button>
-        <input type="file" x-ref="importFile" @change="importData" accept=".json" hidden>
-    </footer>
-
     </div>
 
     <!-- ── Nearby Stops List ── -->
     <div x-show="nearbyView === 'stops'" x-cloak>
         <div class="nearby-header">
-            <button class="btn-icon" @click="backToHome()"><i class="fas fa-arrow-left"></i></button>
+            <button class="btn-icon" @click="goBack()"><i class="fas fa-arrow-left"></i></button>
             <h2>Nearby Stops</h2>
             <div></div>
         </div>
@@ -248,14 +240,15 @@
     <!-- ── Stop Detail ── -->
     <div x-show="nearbyView === 'stopDetail'" x-cloak>
         <div class="nearby-header">
-            <button class="btn-icon" @click="backToNearby()"><i class="fas fa-arrow-left"></i></button>
+            <button class="btn-icon" @click="goBack()"><i class="fas fa-arrow-left"></i></button>
             <div class="nearby-header-title">
                 <span class="nearby-stop-road" x-text="selectedStop?.roadName"></span>
                 <span class="nearby-stop-code" x-text="selectedStop?.code"></span>
             </div>
-            <button class="btn btn-ghost" @click.stop="addShortcutFromStop(selectedStop.code)" style="font-size:13px;padding:6px 12px;white-space:nowrap;">
+            <button class="btn btn-ghost" @click.stop="addShortcutFromStop(selectedStop.code)" x-show="!isShortcutStop(selectedStop?.code)" style="font-size:13px;padding:6px 12px;white-space:nowrap;">
                 <i class="fas fa-plus"></i> Add Stop
             </button>
+            <div x-show="isShortcutStop(selectedStop?.code)" style="width:1px;"></div>
         </div>
 
         <div x-show="selectedStop?.loading" class="empty-state">
@@ -294,41 +287,13 @@
         </template>
     </div>
 
-    <!-- ── Shortcut Stop Detail ── -->
-    <div x-show="nearbyView === 'shortcutDetail'" x-cloak>
-        <div class="nearby-header">
-            <button class="btn-icon" @click="backToHome()"><i class="fas fa-arrow-left"></i></button>
-            <div class="nearby-header-title">
-                <span class="nearby-stop-code" x-text="selectedStop?.code" style="font-size:18px;font-weight:700;color:var(--text);"></span>
-            </div>
-            <div></div>
-        </div>
-
-        <div x-show="!selectedStop?.services || selectedStop.services.length === 0" class="empty-state">
-            <div class="empty-icon"><i class="fas fa-clock"></i></div>
-            <p>No buses arriving at this stop right now</p>
-        </div>
-
-        <template x-if="selectedStop?.services && selectedStop.services.length > 0">
-            <div class="stop-services">
-                <template x-for="svc in selectedStop.services" :key="svc.serviceNo">
-                    <div class="stop-service-card">
-                        <div class="stop-service-row">
-                            <span class="card-service" x-text="svc.serviceNo" style="font-size: 28px;"></span>
-                            <div class="arrivals">
-                                <span class="arrival" :class="arrivalClass(svc.next1)" x-text="formatArrival(svc.next1)"></span>
-                                <span class="arrival" :class="arrivalClass(svc.next2)" x-text="formatArrival(svc.next2)"></span>
-                                <span class="arrival" :class="arrivalClass(svc.next3)" x-text="formatArrival(svc.next3)"></span>
-                            </div>
-                        </div>
-                        <div class="stop-service-meta">
-                            <span x-text="svc.operator"></span>
-                        </div>
-                    </div>
-                </template>
-            </div>
-        </template>
-    </div>
+    <!-- Footer -->
+    <footer class="footer">
+        <button @click="_refresh()"><i class="fas fa-sync-alt"></i> Refresh</button>
+        <button @click="exportData()"><i class="fas fa-download"></i> Export</button>
+        <button @click="$refs.importFile.click()"><i class="fas fa-upload"></i> Import</button>
+        <input type="file" x-ref="importFile" @change="importData" accept=".json" hidden>
+    </footer>
 
 </div>
 
@@ -496,7 +461,7 @@
         </div>
     </div>
 
-<script src="static/script.js?v={{.ScriptJS}}"></script>
+<script src="/static/script.js?v={{.ScriptJS}}"></script>
 <script>
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js?v={{.SWJS}}');

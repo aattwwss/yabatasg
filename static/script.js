@@ -32,9 +32,8 @@ function busApp() {
         // edit
         editTarget: null,
 
-        _pollTimer: null,
+        _stopPollTimer: null,
         _toastId: 0,
-        _failCount: {},
 
         // nearby
         nearbyView: '',
@@ -69,47 +68,148 @@ function busApp() {
             }
         },
 
+        // ── Routing ──
+        _parsePath() {
+            const path = window.location.pathname;
+            const match = path.match(/^\/stop\/(\d+)\/?$/);
+            if (match) return { view: 'stop', code: match[1] };
+            if (path === '/nearby') return { view: 'stops' };
+            return { view: 'home' };
+        },
+
+        _findCachedStop(code) {
+            for (const g of this.groups) {
+                for (const s of g.shortcuts) {
+                    if (s.stopNumber === code) return s;
+                }
+            }
+            return null;
+        },
+
+        goBack() {
+            history.back();
+        },
+
+        isShortcutStop(code) {
+            if (!code) return false;
+            return this.groups.some(g => g.shortcuts.some(s => s.stopNumber === code));
+        },
+
+        _isStale(ts) {
+            return !ts || (Date.now() - ts) > STALE_MS;
+        },
+
+        _applyRoute(route) {
+            if (route.view === 'home') {
+                this.nearbyView = '';
+                this.selectedStop = null;
+                this._stopStopPolling();
+            } else if (route.view === 'stops') {
+                this._stopStopPolling();
+                if (this.nearbyStops.length === 0 && !this.nearbyLoading) {
+                    this._startNearby();
+                } else {
+                    this.nearbyView = 'stops';
+                }
+            } else if (route.view === 'stop') {
+                const code = route.code;
+                const cached = this._findCachedStop(code);
+                this.selectedStop = {
+                    code: code,
+                    roadName: cached?.roadName || `Stop ${code}`,
+                    services: [],
+                    loading: true,
+                    error: ''
+                };
+                this.nearbyView = 'stopDetail';
+                // Always fetch fresh — no global poll keeping data warm.
+                this._loadStopDetail(code, this.selectedStop.roadName);
+                this._startStopPolling(code);
+            }
+        },
+
         init() {
             this._loadTheme();
             this._loadAuth();
             this._load();
             this.filteredGroups = [...this.groups];
-            this._fetchAll().then(() => { this.loading = false; this._backfillStops(); });
+            this._backfillStops().then(() => {
+                this.loading = false;
+                this._applyRoute(this._parsePath());
+            });
             if (this.authToken) {
                 this._loadFromServer();
             }
-            this.$el.addEventListener('update-services', e => {
-                const { groupIndex, shortcutIndex, services, fetchedAt } = e.detail;
-                const s = this.groups[groupIndex]?.shortcuts[shortcutIndex];
-                if (s) { s.services = services; s.lastFetched = fetchedAt; }
-            });
-            this._pollTimer = setInterval(() => this._fetchAll(), POLL_MS);
             this._onPopStateBound = this._onPopState.bind(this);
             window.addEventListener('popstate', this._onPopStateBound);
             this.$watch('showAddModal', val => { if (!val) this.editTarget = null; });
         },
 
         destroy() {
-            clearInterval(this._pollTimer);
+            clearInterval(this._stopPollTimer);
             window.removeEventListener('popstate', this._onPopStateBound);
         },
 
+        _startStopPolling(code) {
+            clearInterval(this._stopPollTimer);
+            this._stopPollTimer = setInterval(() => {
+                if (this.selectedStop && !this.selectedStop.loading) {
+                    this._loadStopDetail(code, this.selectedStop.roadName);
+                }
+            }, POLL_MS);
+        },
+
+        _stopStopPolling() {
+            clearInterval(this._stopPollTimer);
+            this._stopPollTimer = null;
+        },
+
+        _refresh() {
+            if (this.nearbyView === 'stops' && !this.nearbyLoading) {
+                this._startNearby();
+            } else if (this.nearbyView === 'stopDetail' && this.selectedStop) {
+                this._loadStopDetail(this.selectedStop.code, this.selectedStop.roadName);
+            }
+        },
+
         _onPopState(e) {
-            if (e.state?.appView) {
-                this.nearbyView = e.state.appView;
-                if (e.state.appView === 'stopDetail' && e.state.code) {
-                    this.selectedStop = { code: e.state.code, roadName: e.state.roadName, services: [], loading: true, error: '' };
-                    this._loadStopDetail(e.state.code, e.state.roadName);
-                }
-                if (e.state.appView === 'shortcutDetail' && e.state.gi !== undefined) {
-                    const s = this.groups[e.state.gi]?.shortcuts[e.state.si];
-                    if (s) {
-                        this.selectedStop = { code: s.stopNumber, roadName: s.name || s.roadName || `Stop ${s.stopNumber}`, services: s.services, loading: false, error: '' };
-                    }
-                }
-            } else {
+            const route = this._parsePath();
+            if (route.view === 'home') {
                 this.nearbyView = '';
                 this.selectedStop = null;
+                this._stopStopPolling();
+            } else if (route.view === 'stops') {
+                this._stopStopPolling();
+                this.nearbyView = 'stops';
+                if (this.nearbyStops.length === 0 && !this.nearbyLoading) {
+                    this._startNearby();
+                }
+            } else if (route.view === 'stop') {
+                const code = route.code;
+                if (e.state?.cachedServices) {
+                    this.selectedStop = {
+                        code: code,
+                        roadName: e.state.roadName || `Stop ${code}`,
+                        services: e.state.cachedServices,
+                        loading: false,
+                        error: ''
+                    };
+                } else {
+                    const cached = this._findCachedStop(code);
+                    this.selectedStop = {
+                        code: code,
+                        roadName: cached?.roadName || e.state?.roadName || `Stop ${code}`,
+                        services: cached?.services || [],
+                        loading: !cached,
+                        error: ''
+                    };
+                }
+                this.nearbyView = 'stopDetail';
+                this._startStopPolling(code);
+                const svcs = this.selectedStop.services;
+                if (!svcs || svcs.length === 0 || this._isStale(e.state?.cachedAt)) {
+                    this._loadStopDetail(code, this.selectedStop.roadName);
+                }
             }
         },
 
@@ -257,7 +357,6 @@ function busApp() {
                 this.editTarget = null;
                 this.filteredGroups = [...this.groups];
                 this._toast('Shortcut updated', 'success');
-                this._fetchAll();
                 return;
             }
 
@@ -297,7 +396,6 @@ function busApp() {
             this._resetForm();
             this.filteredGroups = [...this.groups];
             this._toast('Shortcut added', 'success');
-            this._fetchOne(f.stopNumber, [{ gi, si }]);
         },
 
         _resetForm() {
@@ -421,13 +519,17 @@ function busApp() {
 
         // ── Nearby ──
         showNearby() {
+            history.pushState({ view: 'stops' }, '', '/nearby');
+            this._startNearby();
+        },
+
+        _startNearby() {
             this.nearbyView = 'stops';
             this.geoError = '';
             this.nearbyStops = [];
             this.filteredNearbyStops = [];
             this.nearbyLoading = true;
             this.nearbySearch = '';
-            history.pushState({ appView: 'stops' }, '');
 
             if (!navigator.geolocation) {
                 this.geoError = 'Geolocation not supported by your browser';
@@ -470,8 +572,9 @@ function busApp() {
         async selectStop(code, roadName) {
             this.nearbyView = 'stopDetail';
             this.selectedStop = { code, roadName, services: [], loading: true, error: '' };
-            history.pushState({ appView: 'stopDetail', code, roadName }, '');
+            history.pushState({ view: 'stop', code, roadName }, '', `/stop/${code}`);
             this._loadStopDetail(code, roadName);
+            this._startStopPolling(code);
         },
 
         async _loadStopDetail(code, roadName) {
@@ -481,6 +584,9 @@ function busApp() {
                 const data = await r.json();
                 this.selectedStop.services = data.services || [];
                 this.selectedStop.loading = false;
+                // Update the shortcut's cached data so next view shows it instantly.
+                const s = this._findCachedStop(code);
+                if (s) { s.services = data.services || []; s.lastFetched = Date.now(); }
             } catch {
                 this.selectedStop.error = 'Failed to load arrivals';
                 this.selectedStop.loading = false;
@@ -492,65 +598,60 @@ function busApp() {
             this.form.name = '';
             this.form.groupName = this.groups.length > 0 ? this.groups[0].name : '';
             this.nearbyView = '';
+            this.selectedStop = null;
+            history.pushState({ view: 'home' }, '', '/');
             this.showAddModal = true;
             const info = await this._lookupStop(stopCode);
             if (info) { this.form.name = info.roadName || ''; }
         },
 
-        viewShortcutDetail(gi, si) {
-            const s = this.groups[gi]?.shortcuts[si];
+        viewShortcutDetail(stopNumber) {
+            // Find the shortcut by stop number across all groups.
+            let s = null;
+            for (let i = 0; i < this.groups.length; i++) {
+                for (let j = 0; j < this.groups[i].shortcuts.length; j++) {
+                    if (String(this.groups[i].shortcuts[j].stopNumber) === String(stopNumber)) {
+                        s = this.groups[i].shortcuts[j];
+                        break;
+                    }
+                }
+                if (s) break;
+            }
             if (!s) return;
+
+            // Push URL FIRST, before any Alpine state changes.
+            // Unwrap Alpine proxies — structured clone in pushState can't clone them.
+            const roadName = s.name || s.roadName || `Stop ${s.stopNumber}`;
+            // Unwrap Alpine proxies for the history state.
+            const plainServices = s.services && s.services.length
+                ? s.services.map(svc => ({
+                    serviceNo: svc.serviceNo,
+                    operator: svc.operator,
+                    next1: svc.next1,
+                    next2: svc.next2,
+                    next3: svc.next3
+                })) : [];
+            history.pushState({
+                view: 'stop', code: s.stopNumber,
+                roadName: roadName,
+                cachedServices: plainServices,
+                cachedAt: s.lastFetched
+            }, '', `/stop/${s.stopNumber}`);
+
+            // Update the view: show cached data instantly if available,
+            // then fetch fresh arrivals.
             this._closeSwipe();
-            this.nearbyView = 'shortcutDetail';
+            this.nearbyView = 'stopDetail';
+            const hasCache = s.services && s.services.length > 0;
             this.selectedStop = {
                 code: s.stopNumber,
-                roadName: s.name || s.roadName || `Stop ${s.stopNumber}`,
-                services: s.services,
-                loading: false,
+                roadName: roadName,
+                services: s.services || [],
+                loading: !hasCache,
                 error: ''
             };
-            history.pushState({ appView: 'shortcutDetail', gi, si }, '');
-        },
-
-        backToNearby() { history.back(); },
-        backToHome() { history.back(); },
-
-        async _fetchAll() {
-            const stopMap = new Map();
-            for (const [gi, g] of this.groups.entries()) {
-                for (const [si, s] of g.shortcuts.entries()) {
-                    if (!stopMap.has(s.stopNumber)) stopMap.set(s.stopNumber, []);
-                    stopMap.get(s.stopNumber).push({ gi, si });
-                }
-            }
-            const jobs = [];
-            for (const [stopNumber, targets] of stopMap) {
-                jobs.push(this._fetchOne(stopNumber, targets));
-            }
-            await Promise.allSettled(jobs);
-        },
-
-        async _fetchOne(stopNumber, targets) {
-            const key = stopNumber;
-            try {
-                const r = await fetch(`/api/v1/stops/${stopNumber}/arrivals`);
-                if (!r.ok) throw new Error(`HTTP ${r.status}`);
-                const data = await r.json();
-                const services = data.services || [];
-                for (const { gi, si } of targets) {
-                    this.$dispatch('update-services', { groupIndex: gi, shortcutIndex: si, services, fetchedAt: Date.now() });
-                }
-                this._failCount[key] = 0;
-            } catch {
-                const services = [];
-                for (const { gi, si } of targets) {
-                    this.$dispatch('update-services', { groupIndex: gi, shortcutIndex: si, services, fetchedAt: Date.now() });
-                }
-                this._failCount[key] = (this._failCount[key] || 0) + 1;
-                if (this._failCount[key] === 3) {
-                    this._toast(`Cannot reach server for stop ${stopNumber}`, 'error');
-                }
-            }
+            this._loadStopDetail(s.stopNumber, roadName);
+            this._startStopPolling(s.stopNumber);
         },
 
         // ── Import / Export ──
@@ -591,7 +692,7 @@ function busApp() {
                     this._save();
                     this.filteredGroups = [...this.groups];
                     this.loading = true;
-                    this._fetchAll().then(() => { this.loading = false; });
+                    this.loading = false;
                     this._toast('Imported', 'success');
                 } catch { this._toast('Could not parse file', 'error'); }
             };
@@ -700,7 +801,7 @@ function busApp() {
                         localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
                         this.filteredGroups = [...this.groups];
                         this.loading = true;
-                        this._fetchAll().then(() => { this.loading = false; });
+                        this.loading = false;
                     }
                 }
                 // Fetch phrase for display.
@@ -869,7 +970,7 @@ function busApp() {
                         localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
                         this.filteredGroups = [...this.groups];
                         this.loading = true;
-                        this._fetchAll().then(() => { this.loading = false; });
+                        this.loading = false;
                     }
                 }
             } catch { /* offline — use localStorage */ }

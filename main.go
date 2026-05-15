@@ -111,17 +111,15 @@ func main() {
 </urlset>`))
 	})
 
-	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			slog.Warn("404 Not Found", "path", r.URL.Path, "method", r.Method)
-			http.NotFound(w, r)
-			return
-		}
+	serveIndex := func(w http.ResponseWriter, r *http.Request) {
 		if err := indexTmpl.Execute(w, tmplHashes); err != nil {
 			slog.Error("Template execution failed", "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		}
-	})
+	}
+	mux.HandleFunc("GET /", serveIndex)
+	mux.HandleFunc("GET /nearby", serveIndex)
+	mux.HandleFunc("GET /stop/{code}", serveIndex)
 
 	arrivalHandler := handler.NewBusArrival(ltaClient)
 	mux.Handle("GET /api/v1/busArrival", corsMiddleware(arrivalHandler))

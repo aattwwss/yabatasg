@@ -157,6 +157,24 @@ func (s *Store) Nearby(lat, lng float64, limit int) ([]StopWithDistance, error) 
 	return results, nil
 }
 
+func (s *Store) GetAllStopCodes() ([]string, error) {
+	rows, err := s.db.Query(`SELECT code FROM bus_stops ORDER BY code`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var codes []string
+	for rows.Next() {
+		var code string
+		if err := rows.Scan(&code); err != nil {
+			return nil, err
+		}
+		codes = append(codes, code)
+	}
+	return codes, rows.Err()
+}
+
 func (s *Store) Close() error {
 	return s.db.Close()
 }

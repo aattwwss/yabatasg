@@ -126,6 +126,6 @@ func TestHaversineSymmetry(t *testing.T) {
 }
 
 type stop struct {
-	code      string
-	lat, lng  float64
+	code     string
+	lat, lng float64
 }

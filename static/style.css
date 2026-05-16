@@ -738,6 +738,41 @@ body.sorting { user-select: none; -webkit-user-select: none; }
     margin-top: 24px;
 }
 
+/* ── Popular Stops (SSR, visible without JS, removed by Alpine) ── */
+.popular-stops {
+    padding: 24px 0 8px;
+}
+.popular-stops h3 {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    margin-bottom: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.popular-stops ul {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.popular-stops li a {
+    display: inline-block;
+    padding: 8px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    transition: background 0.15s, border-color 0.15s;
+}
+.popular-stops li a:hover {
+    background: var(--surface-hover);
+    border-color: var(--primary);
+}
+
 /* ── Responsive ── */
 @media (max-width: 480px) {
     body { padding: 12px; }

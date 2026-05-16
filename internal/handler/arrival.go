@@ -46,9 +46,9 @@ func (h *BusArrival) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	for _, service := range arrivals.Services {
 		if service.ServiceNumber == serviceNo {
-			res[0] = ptr(diffMinutes(service.NextBus.EstimatedArrival.Time, now))
-			res[1] = ptr(diffMinutes(service.NextBus2.EstimatedArrival.Time, now))
-			res[2] = ptr(diffMinutes(service.NextBus3.EstimatedArrival.Time, now))
+			res[0] = new(DiffMinutes(service.NextBus.EstimatedArrival.Time, now))
+			res[1] = new(DiffMinutes(service.NextBus2.EstimatedArrival.Time, now))
+			res[2] = new(DiffMinutes(service.NextBus3.EstimatedArrival.Time, now))
 		}
 	}
 
@@ -57,10 +57,8 @@ func (h *BusArrival) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func diffMinutes(a, b time.Time) int {
+func DiffMinutes(a, b time.Time) int {
 	return int(a.Sub(b).Minutes())
 }
 
-func ptr[T any](v T) *T {
-	return &v
-}
+

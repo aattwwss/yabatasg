@@ -63,9 +63,9 @@ func (h *StopDetail) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		resp.Services = append(resp.Services, ServiceTiming{
 			ServiceNumber: svc.ServiceNumber,
 			Operator:      svc.Operator,
-			Next1:         ptr(diffMinutes(svc.NextBus.EstimatedArrival.Time, now)),
-			Next2:         ptr(diffMinutes(svc.NextBus2.EstimatedArrival.Time, now)),
-			Next3:         ptr(diffMinutes(svc.NextBus3.EstimatedArrival.Time, now)),
+			Next1:         new(DiffMinutes(svc.NextBus.EstimatedArrival.Time, now)),
+			Next2:         new(DiffMinutes(svc.NextBus2.EstimatedArrival.Time, now)),
+			Next3:         new(DiffMinutes(svc.NextBus3.EstimatedArrival.Time, now)),
 		})
 	}
 

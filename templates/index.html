@@ -3,19 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>yabata — Singapore Bus Arrival Timings | Real-Time LTA DataMall</title>
-    <meta name="description" content="Yet Another Bus Arrival Timing Application — check real-time bus arrival times for any bus stop in Singapore. Powered by LTA DataMall. Features nearby stop geolocation, shortcut groups, drag-to-reorder, and cross-device sync.">
+    <title>{{.Title}}</title>
+    <meta name="description" content="{{.Description}}">
     <meta name="keywords" content="Singapore bus arrival, bus timing, LTA DataMall, bus stop, real-time bus, Singapore public transport, bus tracker, SBS Transit, SMRT, Tower Transit, Go-Ahead Singapore">
     <meta name="robots" content="index, follow">
-    <link rel="canonical" href="https://yabatasg.com">
-    <meta property="og:title" content="yabata — Singapore Bus Arrival Timings">
-    <meta property="og:description" content="Check real-time bus arrival times for any bus stop in Singapore. Fast, lightweight, works on any device.">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://yabatasg.com">
+    <link rel="canonical" href="{{.Canonical}}">
+    <meta property="og:title" content="{{.OGTitle}}">
+    <meta property="og:description" content="{{.OGDescription}}">
+    <meta property="og:type" content="{{if .Stop}}article{{else}}website{{end}}">
+    <meta property="og:url" content="{{.OGURL}}">
     <meta property="og:site_name" content="yabata">
     <meta name="twitter:card" content="summary">
-    <meta name="twitter:title" content="yabata — Singapore Bus Arrival Timings">
-    <meta name="twitter:description" content="Check real-time bus arrival times for any bus stop in Singapore. Powered by LTA DataMall.">
+    <meta name="twitter:title" content="{{.OGTitle}}">
+    <meta name="twitter:description" content="{{.OGDescription}}">
+    {{if .JSONLD}}<script type="application/ld+json">{{.JSONLD}}</script>{{end}}
     <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAQAAEABAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAMz/AGnd+gD8/v8ACgoKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEREREAAAAAEERERFAAAAEESIiIRQAAAQSREQiFAAABBIxEUIUAAAEEjERQhQAAAQSMRFCFAAABBIxEUIUAAAEEjERQhQAAAQSMRFCFAAABBIxEUIUAAAEEjERQhQAAAQRIzQhFAAAAEERERFAAAAABBERFAAAAAAARERAAAD4DwAA8AcAAOADAADgAwAA4AMAAOADAADgAwAA4AMAAOADAADgAwAA4AMAAOADAADgAwAA8AcAAPgPAAD8HwAA">
     <link rel="manifest" href="/static/manifest.json?v={{.Manifest}}">
     <link rel="apple-touch-icon" sizes="180x180" href="/static/icon-180.png?v={{.Icon180}}">
@@ -55,6 +56,7 @@
         </div>
     </header>
 
+    {{if not .Stop}}
     <div class="landing-hero" x-init="$el.remove()">
         <h1>yabata — Singapore Bus Arrival Timings</h1>
         <p><strong>Yet Another Bus Arrival Timing Application.</strong> Real-time bus arrival estimates for every bus stop in Singapore, powered by the Land Transport Authority (LTA) DataMall API.</p>
@@ -70,6 +72,49 @@
         </ul>
         <p>Supports all bus operators in Singapore: SBS Transit, SMRT, Tower Transit, and Go-Ahead Singapore.</p>
     </div>
+    {{end}}
+
+    {{if .Stop}}
+    <div x-init="$el.remove()">
+        <div class="nearby-header" style="pointer-events:none;">
+            <div class="nearby-header-title">
+                <span class="nearby-stop-road">{{.Stop.RoadName}}</span>
+                <span class="nearby-stop-code">{{.Stop.Code}}</span>
+            </div>
+        </div>
+        <div class="stop-services">
+            {{range .Stop.Services}}
+            <div class="stop-service-card">
+                <div class="stop-service-row">
+                    <span class="card-service">{{.ServiceNumber}}</span>
+                    <div class="arrivals">
+                        <span class="arrival {{arrivalClass .Next1}}">{{formatArrival .Next1}}</span>
+                        <span class="arrival {{arrivalClass .Next2}}">{{formatArrival .Next2}}</span>
+                        <span class="arrival {{arrivalClass .Next3}}">{{formatArrival .Next3}}</span>
+                    </div>
+                </div>
+                <div class="stop-service-meta">{{.Operator}}</div>
+            </div>
+            {{else}}
+            <div class="empty-state">
+                <div class="empty-icon"><i class="fas fa-clock"></i></div>
+                <p>No buses arriving at this stop right now</p>
+            </div>
+            {{end}}
+        </div>
+    </div>
+    {{end}}
+
+    {{if .PopularStops}}
+    <div class="popular-stops" x-init="$el.remove()">
+        <h3>Popular Bus Stops</h3>
+        <ul>
+            {{range .PopularStops}}
+            <li><a href="/stop/{{.Code}}">{{.RoadName}} ({{.Code}})</a></li>
+            {{end}}
+        </ul>
+    </div>
+    {{end}}
 
     <div x-show="!nearbyView">
 
@@ -462,6 +507,7 @@
     </div>
 
 <script src="/static/script.js?v={{.ScriptJS}}"></script>
+{{if .InitialState}}<script>window.__INITIAL_STATE__ = {{.InitialState}};</script>{{end}}
 <script>
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js?v={{.SWJS}}');

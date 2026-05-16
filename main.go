@@ -155,67 +155,8 @@ func main() {
 	mux.HandleFunc("GET /", serveHome)
 	mux.HandleFunc("GET /nearby", serveHome)
 
-	mux.HandleFunc("GET /stop/{code}", func(w http.ResponseWriter, r *http.Request) {
-		code := r.PathValue("code")
-		stop, err := stopsStore.GetStop(code)
-		if err != nil {
-			slog.Error("Failed to get stop", "code", code, "error", err)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			return
-		}
-		if stop == nil {
-			http.NotFound(w, r)
-			return
-		}
-
-		data := baseData
-		now := time.Now()
-		var services []handler.ServiceTiming
-
-		ctx, cancel := context.WithTimeout(r.Context(), 4*time.Second)
-		defer cancel()
-		arrivals, err := ltaClient.GetBusArrival(ctx, code, "")
-		if err == nil {
-			for _, svc := range arrivals.Services {
-				services = append(services, handler.ServiceTiming{
-					ServiceNumber: svc.ServiceNumber,
-					Operator:      svc.Operator,
-					Next1:         new(handler.DiffMinutes(svc.NextBus.EstimatedArrival.Time, now)),
-					Next2:         new(handler.DiffMinutes(svc.NextBus2.EstimatedArrival.Time, now)),
-					Next3:         new(handler.DiffMinutes(svc.NextBus3.EstimatedArrival.Time, now)),
-				})
-			}
-		} else {
-			slog.Warn("Failed to fetch arrivals for SSR", "code", code, "error", err)
-		}
-
-		data.Stop = &handler.StopRenderData{
-			Code:        stop.Code,
-			RoadName:    stop.RoadName,
-			Description: stop.Description,
-			Services:    services,
-		}
-
-		data.Title = fmt.Sprintf("Bus Stop %s — %s | yabata Singapore", code, stop.RoadName)
-		data.Description = fmt.Sprintf("Real-time bus arrival times for Stop %s (%s), Singapore. Check live next-bus timings for all services at this stop. Powered by LTA DataMall.", code, stop.RoadName)
-		data.Canonical = fmt.Sprintf("https://yabatasg.com/stop/%s", code)
-		data.OGTitle = fmt.Sprintf("Bus Stop %s — %s | yabata", code, stop.RoadName)
-		data.OGDescription = fmt.Sprintf("Live bus arrivals for Stop %s (%s), Singapore. Powered by LTA DataMall.", code, stop.RoadName)
-		data.OGURL = data.Canonical
-		data.JSONLD = handler.BuildStopJSONLD(data.Stop)
-
-		initState, err := handler.BuildInitialState(data.Stop)
-		if err != nil {
-			slog.Warn("Failed to marshal initial state", "code", code, "error", err)
-		} else {
-			data.InitialState = initState
-		}
-
-		if err := indexTmpl.Execute(w, data); err != nil {
-			slog.Error("Template execution failed", "error", err)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		}
-	})
+	stopPageHandler := handler.NewStopPage(stopsStore, ltaClient, baseData, indexTmpl)
+	mux.Handle("GET /stop/{code}", stopPageHandler)
 
 	arrivalHandler := handler.NewBusArrival(ltaClient)
 	mux.Handle("GET /api/v1/busArrival", corsMiddleware(arrivalHandler))

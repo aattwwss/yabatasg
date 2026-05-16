@@ -98,6 +98,13 @@ func main() {
 
 	mux.Handle("GET /static/", cacheStatic(http.StripPrefix("/static/", http.FileServer(http.FS(staticFS)))))
 
+	faviconData, _ := fs.ReadFile(staticFS, "icon-192.png")
+	mux.HandleFunc("GET /favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		w.Write(faviconData)
+	})
+
 	swJS, _ := templateFiles.ReadFile("templates/sw.js")
 	mux.HandleFunc("GET /sw.js", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/javascript")

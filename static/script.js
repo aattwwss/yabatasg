@@ -123,7 +123,7 @@ function busApp() {
                 };
                 this.nearbyView = 'stopDetail';
                 // Always fetch fresh — no global poll keeping data warm.
-                this._loadStopDetail(code, this.selectedStop.roadName);
+                this._loadStopDetail(code);
                 this._startStopPolling(code);
             }
         },
@@ -133,9 +133,12 @@ function busApp() {
             this._loadAuth();
             this._load();
             this.filteredGroups = [...this.groups];
+            const ssrCode = this._hydrateFromSSR();
             this._backfillStops().then(() => {
                 this.loading = false;
-                this._applyRoute(this._parsePath());
+                if (!ssrCode) {
+                    this._applyRoute(this._parsePath());
+                }
             });
             if (this.authToken) {
                 this._loadFromServer();
@@ -143,6 +146,22 @@ function busApp() {
             this._onPopStateBound = this._onPopState.bind(this);
             window.addEventListener('popstate', this._onPopStateBound);
             this.$watch('showAddModal', val => { if (!val) this.editTarget = null; });
+        },
+
+        _hydrateFromSSR() {
+            if (!window.__INITIAL_STATE__) return null;
+            const state = window.__INITIAL_STATE__;
+            this.selectedStop = {
+                code: state.code,
+                roadName: state.roadName,
+                services: state.services || [],
+                loading: false,
+                error: ''
+            };
+            this.nearbyView = 'stopDetail';
+            this._startStopPolling(state.code);
+            delete window.__INITIAL_STATE__;
+            return state.code;
         },
 
         destroy() {
@@ -154,7 +173,7 @@ function busApp() {
             clearInterval(this._stopPollTimer);
             this._stopPollTimer = setInterval(() => {
                 if (this.selectedStop && !this.selectedStop.loading) {
-                    this._loadStopDetail(code, this.selectedStop.roadName);
+                    this._loadStopDetail(code);
                 }
             }, POLL_MS);
         },
@@ -168,7 +187,7 @@ function busApp() {
             if (this.nearbyView === 'stops' && !this.nearbyLoading) {
                 this._startNearby();
             } else if (this.nearbyView === 'stopDetail' && this.selectedStop) {
-                this._loadStopDetail(this.selectedStop.code, this.selectedStop.roadName);
+                this._loadStopDetail(this.selectedStop.code);
             }
         },
 
@@ -208,7 +227,7 @@ function busApp() {
                 this._startStopPolling(code);
                 const svcs = this.selectedStop.services;
                 if (!svcs || svcs.length === 0 || this._isStale(e.state?.cachedAt)) {
-                    this._loadStopDetail(code, this.selectedStop.roadName);
+                    this._loadStopDetail(code);
                 }
             }
         },
@@ -388,8 +407,6 @@ function busApp() {
             const info = await this._lookupStop(f.stopNumber);
             if (info) { shortcut.roadName = info.roadName; shortcut.description = info.description; }
             group.shortcuts.push(shortcut);
-            const gi = this.groups.indexOf(group);
-            const si = group.shortcuts.length - 1;
 
             this._save();
             this.showAddModal = false;
@@ -573,11 +590,11 @@ function busApp() {
             this.nearbyView = 'stopDetail';
             this.selectedStop = { code, roadName, services: [], loading: true, error: '' };
             history.pushState({ view: 'stop', code, roadName }, '', `/stop/${code}`);
-            this._loadStopDetail(code, roadName);
+            this._loadStopDetail(code);
             this._startStopPolling(code);
         },
 
-        async _loadStopDetail(code, roadName) {
+        async _loadStopDetail(code) {
             try {
                 const r = await fetch(`/api/v1/stops/${code}/arrivals`);
                 if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -650,7 +667,7 @@ function busApp() {
                 loading: !hasCache,
                 error: ''
             };
-            this._loadStopDetail(s.stopNumber, roadName);
+            this._loadStopDetail(s.stopNumber);
             this._startStopPolling(s.stopNumber);
         },
 
@@ -876,7 +893,7 @@ function busApp() {
         },
 
         _phrasePaste(evt) {
-            const paste = (evt.clipboardData || window.clipboardData).getData('text');
+            const paste = evt.clipboardData.getData('text');
             if (!paste || !paste.includes('-')) return;
             evt.preventDefault();
             const parts = paste.trim().toLowerCase().split('-');

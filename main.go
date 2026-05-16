@@ -6,12 +6,14 @@ import (
 	"embed"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -54,7 +56,10 @@ func main() {
 	}
 	defer stopsStore.Close()
 
-	indexTmpl, err := template.ParseFS(templateFiles, "templates/index.html")
+	indexTmpl, err := template.New("index.html").Funcs(template.FuncMap{
+		"formatArrival": handler.FormatArrival,
+		"arrivalClass":  handler.ArrivalClass,
+	}).ParseFS(templateFiles, "templates/index.html")
 	if err != nil {
 		slog.Error("Template parsing failed", "error", err)
 		os.Exit(1)
@@ -67,13 +72,19 @@ func main() {
 	icon180Hash, _ := fileHash(staticFS, "icon-180.png")
 	swHash, _ := fileHash(templateFiles, "templates/sw.js")
 
-	tmplHashes := map[string]string{
-		"StyleCSS":    styleHash,
-		"ScriptJS":    scriptHash,
-		"Manifest":    manifestHash,
-		"IconSVG":     iconSVGHash,
-		"Icon180":     icon180Hash,
-		"SWJS":        swHash,
+	baseData := handler.TemplateData{
+		StyleCSS:      styleHash,
+		ScriptJS:      scriptHash,
+		Manifest:      manifestHash,
+		IconSVG:       iconSVGHash,
+		Icon180:       icon180Hash,
+		SWJS:          swHash,
+		Title:         "yabata — Singapore Bus Arrival Timings | Real-Time LTA DataMall",
+		Description:   "Yet Another Bus Arrival Timing Application — check real-time bus arrival times for any bus stop in Singapore. Powered by LTA DataMall. Features nearby stop geolocation, shortcut groups, drag-to-reorder, and cross-device sync.",
+		Canonical:     "https://yabatasg.com",
+		OGTitle:       "yabata — Singapore Bus Arrival Timings",
+		OGDescription: "Check real-time bus arrival times for any bus stop in Singapore. Fast, lightweight, works on any device.",
+		OGURL:         "https://yabatasg.com",
 	}
 
 	ltaClient := lta.New(os.Getenv("LTA_ACCESS_KEY"), os.Getenv("LTA_API_HOST"))
@@ -101,25 +112,51 @@ func main() {
 
 	mux.HandleFunc("GET /sitemap.xml", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/xml")
-		w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-	<url>
-		<loc>https://yabatasg.com/</loc>
-		<changefreq>weekly</changefreq>
-		<priority>1.0</priority>
-	</url>
-</urlset>`))
+		codes, err := stopsStore.GetAllStopCodes()
+		if err != nil {
+			slog.Error("sitemap: failed to get codes", "error", err)
+			codes = nil
+		}
+		var buf strings.Builder
+		buf.WriteString(`<?xml version="1.0" encoding="UTF-8"?>`)
+		buf.WriteString(`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`)
+		buf.WriteString(`<url><loc>https://yabatasg.com/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>`)
+		buf.WriteString(`<url><loc>https://yabatasg.com/nearby</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>`)
+		for _, code := range codes {
+			fmt.Fprintf(&buf, `<url><loc>https://yabatasg.com/stop/%s</loc><changefreq>always</changefreq><priority>0.7</priority></url>`, code)
+		}
+		buf.WriteString(`</urlset>`)
+		w.Write([]byte(buf.String()))
 	})
 
-	serveIndex := func(w http.ResponseWriter, r *http.Request) {
-		if err := indexTmpl.Execute(w, tmplHashes); err != nil {
+	popularStops := []handler.PopularStop{
+		{Code: "83139", RoadName: "Orchard Stn"},
+		{Code: "08057", RoadName: "City Hall Stn"},
+		{Code: "01012", RoadName: "Raffles Place Stn"},
+		{Code: "52071", RoadName: "Jurong East Stn"},
+		{Code: "46008", RoadName: "Toa Payoh Int"},
+		{Code: "75009", RoadName: "Woodlands Int"},
+		{Code: "65009", RoadName: "Tampines Int"},
+		{Code: "28009", RoadName: "Bedok Int"},
+		{Code: "10009", RoadName: "Serangoon Int"},
+		{Code: "84039", RoadName: "Bishan Stn"},
+		{Code: "40011", RoadName: "Ang Mo Kio Int"},
+		{Code: "01139", RoadName: "Clarke Quay Stn"},
+	}
+
+	serveHome := func(w http.ResponseWriter, r *http.Request) {
+		data := baseData
+		data.PopularStops = popularStops
+		if err := indexTmpl.Execute(w, data); err != nil {
 			slog.Error("Template execution failed", "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		}
 	}
-	mux.HandleFunc("GET /", serveIndex)
-	mux.HandleFunc("GET /nearby", serveIndex)
-	mux.HandleFunc("GET /stop/{code}", serveIndex)
+	mux.HandleFunc("GET /", serveHome)
+	mux.HandleFunc("GET /nearby", serveHome)
+
+	stopPageHandler := handler.NewStopPage(stopsStore, ltaClient, baseData, indexTmpl)
+	mux.Handle("GET /stop/{code}", stopPageHandler)
 
 	arrivalHandler := handler.NewBusArrival(ltaClient)
 	mux.Handle("GET /api/v1/busArrival", corsMiddleware(arrivalHandler))

@@ -33,8 +33,8 @@ type BusArrival struct {
 }
 
 type Service struct {
-	ServiceNumber string `json:"ServiceNo"`
-	Operator      string `json:"Operator"`
+	ServiceNumber string  `json:"ServiceNo"`
+	Operator      string  `json:"Operator"`
 	NextBus       NextBus `json:"NextBus"`
 	NextBus2      NextBus `json:"NextBus2"`
 	NextBus3      NextBus `json:"NextBus3"`

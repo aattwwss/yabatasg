@@ -170,9 +170,10 @@
                         </div>
                         <div class="card-body" @click="viewShortcutDetail(s.stopNumber)">
                             <div class="card-stop-main">
-                                <span class="card-stop-road" x-text="s.roadName || s.name || 'Stop ' + s.stopNumber"></span>
-                                <span class="card-stop-desc" x-show="s.name && s.roadName" x-text="s.name"></span>
-                                <span class="card-stop-desc" x-show="!s.roadName && s.description" x-text="s.description"></span>
+                                <span class="card-stop-road" x-text="s.name || s.description || s.roadName || 'Stop ' + s.stopNumber"></span>
+                                <template x-if="cardSubtitle(s)">
+                                    <span class="card-stop-desc" x-text="cardSubtitle(s)"></span>
+                                </template>
                             </div>
                             <div class="card-stop-right">
                                 <span class="card-stop-code" x-text="s.stopNumber"></span>
@@ -251,8 +252,8 @@
                 <template x-for="stop in filteredNearbyStops" :key="stop.code">
                     <div class="nearby-stop-card" @click="selectStop(stop.code, stop.roadName)">
                         <div class="nearby-stop-main">
+                            <span class="nearby-stop-name" x-text="stop.description"></span>
                             <span class="nearby-stop-road" x-text="stop.roadName"></span>
-                            <span class="nearby-stop-desc" x-text="stop.description"></span>
                         </div>
                         <div class="nearby-stop-right">
                             <span class="nearby-stop-dist" x-text="stop.distance < 1000 ? Math.round(stop.distance) + 'm' : (stop.distance / 1000).toFixed(1) + 'km'"></span>
@@ -277,7 +278,7 @@
         <div class="nearby-header">
             <button class="btn-icon" @click="goBack()"><i class="fas fa-arrow-left"></i></button>
             <div class="nearby-header-title">
-                <span class="nearby-stop-road" x-text="selectedStop?.roadName"></span>
+                <span class="nearby-stop-name" x-text="selectedStop?.roadName"></span>
                 <span class="nearby-stop-code" x-text="selectedStop?.code"></span>
             </div>
             <button class="btn btn-ghost" @click.stop="addShortcutFromStop(selectedStop.code)" x-show="!isShortcutStop(selectedStop?.code)" style="font-size:13px;padding:6px 12px;white-space:nowrap;">

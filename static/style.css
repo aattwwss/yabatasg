@@ -807,7 +807,7 @@ body.sorting { user-select: none; -webkit-user-select: none; }
     min-width: 0;
 }
 
-.nearby-stop-road {
+.nearby-stop-name {
     font-size: 15px;
     font-weight: 600;
     color: var(--text);
@@ -816,7 +816,7 @@ body.sorting { user-select: none; -webkit-user-select: none; }
     text-overflow: ellipsis;
 }
 
-.nearby-stop-desc {
+.nearby-stop-road {
     font-size: 13px;
     color: var(--text-secondary);
     white-space: nowrap;

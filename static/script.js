@@ -525,6 +525,18 @@ function busApp() {
         },
         isStale(s) { return s.lastFetched && (Date.now() - s.lastFetched) > STALE_MS; },
 
+        cardSubtitle(s) {
+            const primary = s.name || s.description || s.roadName || '';
+            const parts = [];
+            if (s.description && s.description !== primary && s.description !== s.roadName) {
+                parts.push(s.description);
+            }
+            if (s.roadName && s.roadName !== primary) {
+                parts.push(s.roadName);
+            }
+            return parts.join(' · ');
+        },
+
         relativeTime(ts) {
             const sec = Math.floor((Date.now() - ts) / 1000);
             if (sec < 5) return 'just now';

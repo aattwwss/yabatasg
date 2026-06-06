@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"strings"
 )
 
 // TemplateData is passed to every HTML template execution.
@@ -23,7 +22,7 @@ type TemplateData struct {
 	OGDescription string
 	OGURL         string
 
-	JSONLD template.HTML
+	JSONLD template.JS
 
 	Stop *StopRenderData
 
@@ -47,37 +46,60 @@ type PopularStop struct {
 }
 
 // BuildStopJSONLD constructs a JSON-LD script body for a bus stop with BusTrip offers.
-func BuildStopJSONLD(stop *StopRenderData) template.HTML {
-	var sb strings.Builder
-	sb.WriteString(`{"@context":"https://schema.org","@type":"BusStop",`)
-	fmt.Fprintf(&sb, `"name":"Stop %s — %s",`, stop.Code, stop.RoadName)
-	fmt.Fprintf(&sb, `"identifier":"%s",`, stop.Code)
-	fmt.Fprintf(&sb, `"url":"https://yabatasg.com/stop/%s",`, stop.Code)
-	fmt.Fprintf(&sb, `"description":"Real-time bus arrival times for Stop %s (%s) in Singapore. Powered by LTA DataMall.",`, stop.Code, stop.RoadName)
-
-	// containedInPlace
-	sb.WriteString(`"containedInPlace":{"@type":"City","name":"Singapore"},`)
-
-	// containsOffer — each bus service as a BusTrip
-	sb.WriteString(`"containsOffer":[`)
-	for i, svc := range stop.Services {
-		if i > 0 {
-			sb.WriteString(",")
-		}
-		sb.WriteString(`{"@type":"BusTrip",`)
-		fmt.Fprintf(&sb, `"name":"Bus %s",`, svc.ServiceNumber)
-		if svc.Operator != "" {
-			fmt.Fprintf(&sb, `"provider":{"@type":"Organization","name":"%s"},`, svc.Operator)
-		}
-		// next arrival as departureTime if available
-		if svc.Next1 != nil && *svc.Next1 >= 0 {
-			fmt.Fprintf(&sb, `"description":"Next bus in %d min"`, *svc.Next1)
-		}
-		sb.WriteString("}")
+func BuildStopJSONLD(stop *StopRenderData) template.JS {
+	type place struct {
+		Type string `json:"@type"`
+		Name string `json:"name"`
 	}
-	sb.WriteString("]}")
+	type trip struct {
+		Type        string  `json:"@type"`
+		Name        string  `json:"name"`
+		Provider    *place  `json:"provider,omitempty"`
+		Description string  `json:"description,omitempty"`
+	}
+	type ld struct {
+		Context          string `json:"@context"`
+		Type             string `json:"@type"`
+		Name             string `json:"name"`
+		Identifier       string `json:"identifier"`
+		URL              string `json:"url"`
+		Description      string `json:"description"`
+		ContainedInPlace place  `json:"containedInPlace"`
+		ContainsOffer    []trip `json:"containsOffer"`
+	}
 
-	return template.HTML(sb.String())
+	trips := make([]trip, 0, len(stop.Services))
+	for _, svc := range stop.Services {
+		t := trip{
+			Type: "BusTrip",
+			Name: "Bus " + svc.ServiceNumber,
+		}
+		if svc.Operator != "" {
+			t.Provider = &place{Type: "Organization", Name: svc.Operator}
+		}
+		if svc.Next1 != nil && *svc.Next1 >= 0 {
+			t.Description = fmt.Sprintf("Next bus in %d min", *svc.Next1)
+		}
+		trips = append(trips, t)
+	}
+
+	b, err := json.Marshal(ld{
+		Context:     "https://schema.org",
+		Type:        "BusStop",
+		Name:        fmt.Sprintf("Stop %s — %s", stop.Code, stop.RoadName),
+		Identifier:  stop.Code,
+		URL:         fmt.Sprintf("https://yabatasg.com/stop/%s", stop.Code),
+		Description: fmt.Sprintf("Real-time bus arrival times for Stop %s (%s) in Singapore. Powered by LTA DataMall.", stop.Code, stop.RoadName),
+		ContainedInPlace: place{
+			Type: "City",
+			Name: "Singapore",
+		},
+		ContainsOffer: trips,
+	})
+	if err != nil {
+		return template.JS("")
+	}
+	return template.JS(b)
 }
 
 // BuildInitialState serializes stop data for Alpine.js hydration.

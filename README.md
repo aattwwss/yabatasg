@@ -1,6 +1,6 @@
 # YABATASG
 
-Yet Another Bus Arrival Timeing Application Singapore
+Yet Another Bus Arrival Time Application — Singapore
 
 ## Getting Started
 

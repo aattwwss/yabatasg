@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{{.Title}}</title>
     <meta name="description" content="{{.Description}}">
-    <meta name="keywords" content="Singapore bus arrival, bus timing, LTA DataMall, bus stop, real-time bus, Singapore public transport, bus tracker, SBS Transit, SMRT, Tower Transit, Go-Ahead Singapore">
+    <meta name="keywords" content="Singapore bus arrival, bus time, LTA DataMall, bus stop, real-time bus, Singapore public transport, bus tracker, SBS Transit, SMRT, Tower Transit, Go-Ahead Singapore">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="{{.Canonical}}">
     <meta property="og:title" content="{{.OGTitle}}">
@@ -17,6 +17,7 @@
     <meta name="twitter:title" content="{{.OGTitle}}">
     <meta name="twitter:description" content="{{.OGDescription}}">
     {{if .JSONLD}}<script type="application/ld+json">{{.JSONLD}}</script>{{end}}
+    {{if .BreadcrumbLD}}<script type="application/ld+json">{{.BreadcrumbLD}}</script>{{end}}
     <link rel="icon" href="/favicon.ico">
     <link rel="manifest" href="/static/manifest.json?v={{.Manifest}}">
     <link rel="apple-touch-icon" sizes="180x180" href="/static/icon-180.png?v={{.Icon180}}">
@@ -34,10 +35,10 @@
 
     <!-- Header -->
     <header class="header">
-        <div class="header-left" @click="nearbyView = ''; selectedStop = null; _stopStopPolling(); history.pushState({view: 'home'}, '', '/')" style="cursor:pointer;">
+        <a href="/" class="header-left" @click.prevent="nearbyView = ''; selectedStop = null; _stopStopPolling(); history.pushState({view: 'home'}, '', '/')">
             <span class="logo"><i class="fas fa-bus"></i></span>
             <span class="app-name">yabata</span>
-        </div>
+        </a>
         <div class="header-actions">
             <button class="btn btn-ghost" @click="showNearby()">
                 <i class="fas fa-location-dot"></i> <span>Nearby</span>
@@ -56,32 +57,25 @@
         </div>
     </header>
 
-    {{if not .Stop}}
-    <div class="landing-hero" x-init="$el.remove()">
-        <h1>yabata — Singapore Bus Arrival Timings</h1>
-        <p><strong>Yet Another Bus Arrival Timing Application.</strong> Real-time bus arrival estimates for every bus stop in Singapore, powered by the Land Transport Authority (LTA) DataMall API.</p>
-        <p>Add your frequently used bus services, organise them into groups, and see when your next three buses are arriving — all on one screen. Use the <strong>Nearby</strong> feature to find bus stops around you with live arrival information for all services at each stop.</p>
-        <ul>
-            <li>Real-time arrival timings from LTA DataMall</li>
-            <li>Nearby bus stop finder with geolocation</li>
-            <li>Shortcut groups — organise by route, stop, or destination</li>
-            <li>Drag-and-drop reordering</li>
-            <li>Cross-device sync with a memorable phrase</li>
-            <li>Light and dark theme</li>
-            <li>Works on any device — installable as a PWA</li>
-        </ul>
-        <p>Supports all bus operators in Singapore: SBS Transit, SMRT, Tower Transit, and Go-Ahead Singapore.</p>
-    </div>
-    {{end}}
-
     {{if .Stop}}
-    <div x-init="$el.remove()">
-        <div class="nearby-header" style="pointer-events:none;">
-            <div class="nearby-header-title">
-                <span class="nearby-stop-road">{{.Stop.RoadName}}</span>
-                <span class="nearby-stop-code">{{.Stop.Code}}</span>
-            </div>
-        </div>
+    <div x-show="!selectedStop">
+        <nav class="breadcrumbs" aria-label="Breadcrumb">
+            <ol>
+                <li><a href="/">Home</a></li>
+                <li aria-current="page">Bus Stop {{.Stop.Code}}</li>
+            </ol>
+        </nav>
+
+        <!-- Stop heading -->
+        <h1 class="stop-heading">
+            Bus Stop {{.Stop.Code}}
+            {{if and .Stop.Description (ne .Stop.Description .Stop.RoadName)}}
+            — {{.Stop.Description}}
+            {{end}}
+            <span class="stop-heading-road">({{.Stop.RoadName}})</span>
+        </h1>
+
+        <!-- Arrivals -->
         <div class="stop-services">
             {{range .Stop.Services}}
             <div class="stop-service-card">
@@ -102,17 +96,6 @@
             </div>
             {{end}}
         </div>
-    </div>
-    {{end}}
-
-    {{if .PopularStops}}
-    <div class="popular-stops" x-init="$el.remove()">
-        <h3>Popular Bus Stops</h3>
-        <ul>
-            {{range .PopularStops}}
-            <li><a href="/stop/{{.Code}}">{{.RoadName}} ({{.Code}})</a></li>
-            {{end}}
-        </ul>
     </div>
     {{end}}
 
@@ -284,6 +267,13 @@
 
     <!-- ── Stop Detail ── -->
     <div x-show="nearbyView === 'stopDetail'" x-cloak>
+        <nav class="breadcrumbs" aria-label="Breadcrumb">
+            <ol>
+                <li><a href="/" @click.prevent="nearbyView = ''; selectedStop = null; _stopStopPolling(); history.pushState({view: 'home'}, '', '/')">Home</a></li>
+                <li aria-current="page"><span x-text="'Bus Stop ' + selectedStop?.code"></span></li>
+            </ol>
+        </nav>
+
         <div class="nearby-header">
             <button class="btn-icon" @click="goBack()"><i class="fas fa-arrow-left"></i></button>
             <div class="nearby-header-title">

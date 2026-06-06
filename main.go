@@ -79,12 +79,13 @@ func main() {
 		IconSVG:       iconSVGHash,
 		Icon180:       icon180Hash,
 		SWJS:          swHash,
-		Title:         "yabata — Singapore Bus Arrival Timings | Real-Time LTA DataMall",
-		Description:   "Yet Another Bus Arrival Timing Application — check real-time bus arrival times for any bus stop in Singapore. Powered by LTA DataMall. Features nearby stop geolocation, shortcut groups, drag-to-reorder, and cross-device sync.",
+		Title:         "Singapore Bus Arrival Times — yabata | Real-Time LTA Data",
+		Description:   "Yet Another Bus Arrival Time Application — check real-time bus arrival times for any bus stop in Singapore. Powered by LTA DataMall. Features nearby stop geolocation, shortcut groups, drag-to-reorder, and cross-device sync.",
 		Canonical:     "https://yabatasg.com",
-		OGTitle:       "yabata — Singapore Bus Arrival Timings",
+		OGTitle:       "Singapore Bus Arrival Times — yabata",
 		OGDescription: "Check real-time bus arrival times for any bus stop in Singapore. Fast, lightweight, works on any device.",
 		OGURL:         "https://yabatasg.com",
+		JSONLD:        handler.BuildHomeJSONLD(),
 	}
 
 	ltaClient := lta.New(os.Getenv("LTA_ACCESS_KEY"), os.Getenv("LTA_API_HOST"))
@@ -136,24 +137,8 @@ func main() {
 		w.Write([]byte(buf.String()))
 	})
 
-	popularStops := []handler.PopularStop{
-		{Code: "83139", RoadName: "Orchard Stn"},
-		{Code: "08057", RoadName: "City Hall Stn"},
-		{Code: "01012", RoadName: "Raffles Place Stn"},
-		{Code: "52071", RoadName: "Jurong East Stn"},
-		{Code: "46008", RoadName: "Toa Payoh Int"},
-		{Code: "75009", RoadName: "Woodlands Int"},
-		{Code: "65009", RoadName: "Tampines Int"},
-		{Code: "28009", RoadName: "Bedok Int"},
-		{Code: "10009", RoadName: "Serangoon Int"},
-		{Code: "84039", RoadName: "Bishan Stn"},
-		{Code: "40011", RoadName: "Ang Mo Kio Int"},
-		{Code: "01139", RoadName: "Clarke Quay Stn"},
-	}
-
 	serveHome := func(w http.ResponseWriter, r *http.Request) {
 		data := baseData
-		data.PopularStops = popularStops
 		if err := indexTmpl.Execute(w, data); err != nil {
 			slog.Error("Template execution failed", "error", err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)

@@ -61,16 +61,18 @@ func New(dbPath string) (*Store, error) {
 }
 
 type Stop struct {
-	Code        string `json:"code"`
-	RoadName    string `json:"roadName"`
-	Description string `json:"description"`
+	Code        string  `json:"code"`
+	RoadName    string  `json:"roadName"`
+	Description string  `json:"description"`
+	Latitude    float64 `json:"latitude"`
+	Longitude   float64 `json:"longitude"`
 }
 
 func (s *Store) GetStop(code string) (*Stop, error) {
 	var stop Stop
 	err := s.db.QueryRow(
-		`SELECT code, road_name, description FROM bus_stops WHERE code = ?`, code,
-	).Scan(&stop.Code, &stop.RoadName, &stop.Description)
+		`SELECT code, road_name, description, latitude, longitude FROM bus_stops WHERE code = ?`, code,
+	).Scan(&stop.Code, &stop.RoadName, &stop.Description, &stop.Latitude, &stop.Longitude)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

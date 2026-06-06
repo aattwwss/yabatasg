@@ -61,16 +61,26 @@ func (h *StopPage) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Code:        stop.Code,
 		RoadName:    stop.RoadName,
 		Description: stop.Description,
+		Latitude:    stop.Latitude,
+		Longitude:   stop.Longitude,
 		Services:    services,
 	}
 
-	data.Title = fmt.Sprintf("Bus Stop %s — %s | yabata Singapore", code, stop.RoadName)
-	data.Description = fmt.Sprintf("Real-time bus arrival times for Stop %s (%s), Singapore. Check live next-bus timings for all services at this stop. Powered by LTA DataMall.", code, stop.RoadName)
+	// Build title and descriptions that include the stop description for richer snippets.
+	var titleStop string
+	if stop.Description != "" && stop.Description != stop.RoadName {
+		titleStop = fmt.Sprintf("Bus Stop %s — %s (%s)", code, stop.Description, stop.RoadName)
+	} else {
+		titleStop = fmt.Sprintf("Bus Stop %s — %s", code, stop.RoadName)
+	}
+	data.Title = fmt.Sprintf("%s | yabata Singapore", titleStop)
+	data.Description = fmt.Sprintf("Real-time bus arrival times for %s, Singapore. Check live next-bus times for all services at this stop. Powered by LTA DataMall.", titleStop)
 	data.Canonical = fmt.Sprintf("https://yabatasg.com/stop/%s", code)
-	data.OGTitle = fmt.Sprintf("Bus Stop %s — %s | yabata", code, stop.RoadName)
-	data.OGDescription = fmt.Sprintf("Live bus arrivals for Stop %s (%s), Singapore. Powered by LTA DataMall.", code, stop.RoadName)
+	data.OGTitle = fmt.Sprintf("%s | yabata", titleStop)
+	data.OGDescription = fmt.Sprintf("Live bus arrivals for %s, Singapore. Powered by LTA DataMall.", titleStop)
 	data.OGURL = data.Canonical
 	data.JSONLD = BuildStopJSONLD(data.Stop)
+	data.BreadcrumbLD = BuildBreadcrumbJSONLD(code, stop.RoadName)
 
 	initState, err := BuildInitialState(data.Stop)
 	if err != nil {

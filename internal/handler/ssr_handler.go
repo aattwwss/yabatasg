@@ -52,6 +52,11 @@ func (h *StopPage) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				Next2:         new(DiffMinutes(svc.NextBus2.EstimatedArrival.Time, now)),
 				Next3:         new(DiffMinutes(svc.NextBus3.EstimatedArrival.Time, now)),
 			})
+			if svc.Operator != "" {
+				if err := h.store.UpsertServiceOperator(svc.ServiceNumber, svc.Operator); err != nil {
+					slog.Warn("Failed to upsert operator", "serviceNo", svc.ServiceNumber, "error", err)
+				}
+			}
 		}
 	} else {
 		slog.Warn("Failed to fetch arrivals for SSR", "code", code, "error", err)

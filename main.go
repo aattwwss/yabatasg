@@ -150,14 +150,21 @@ func main() {
 	stopPageHandler := handler.NewStopPage(stopsStore, ltaClient, baseData, indexTmpl)
 	mux.Handle("GET /stop/{code}", stopPageHandler)
 
+	servicePageHandler := handler.NewServicePage(stopsStore, baseData, indexTmpl)
+	mux.Handle("GET /service/{no}", servicePageHandler)
+
 	arrivalHandler := handler.NewBusArrival(ltaClient)
 	mux.Handle("GET /api/v1/busArrival", corsMiddleware(arrivalHandler))
 
 	nearbyHandler := handler.NewNearby(stopsStore)
 	mux.Handle("GET /api/v1/stops/nearby", corsMiddleware(nearbyHandler))
 
-	stopDetailHandler := handler.NewStopDetail(ltaClient)
+	stopDetailHandler := handler.NewStopDetail(ltaClient, stopsStore)
 	mux.Handle("GET /api/v1/stops/{code}/arrivals", corsMiddleware(stopDetailHandler))
+
+	serviceHandler := handler.NewService(stopsStore)
+	mux.Handle("GET /api/v1/services/search", corsMiddleware(http.HandlerFunc(serviceHandler.Search)))
+	mux.Handle("GET /api/v1/services/{no}/stops", corsMiddleware(http.HandlerFunc(serviceHandler.Stops)))
 
 	mux.HandleFunc("GET /api/v1/stops/{code}", corsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

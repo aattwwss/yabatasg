@@ -113,3 +113,34 @@ func (c *Client) GetBusStops(ctx context.Context, skip int) (*Response[BusStop],
 
 	return &busStops, nil
 }
+
+func (c *Client) GetBusRoutes(ctx context.Context, skip int) (*Response[BusRoute], error) {
+	url := c.host + "/ltaodataservice/BusRoutes"
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	q := req.URL.Query()
+	q.Add("$skip", strconv.Itoa(skip))
+	req.URL.RawQuery = q.Encode()
+	req.Header.Add("AccountKey", c.apiKey)
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var routes Response[BusRoute]
+	if err := json.Unmarshal(body, &routes); err != nil {
+		return nil, err
+	}
+
+	return &routes, nil
+}

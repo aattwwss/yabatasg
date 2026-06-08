@@ -60,5 +60,3 @@ func (h *BusArrival) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func DiffMinutes(a, b time.Time) int {
 	return int(a.Sub(b).Minutes())
 }
-
-

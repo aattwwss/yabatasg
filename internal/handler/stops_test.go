@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/aattwwss/yabatasg/internal/lta"
+	"github.com/aattwwss/yabatasg/internal/store"
 )
 
 type mockLTA struct{}
@@ -22,8 +23,18 @@ func (m *mockLTA) GetBusArrival(ctx context.Context, busStopCode, serviceNumber 
 	}, nil
 }
 
+func testStore(t *testing.T) *store.Store {
+	t.Helper()
+	s, err := store.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	t.Cleanup(func() { s.Close() })
+	return s
+}
+
 func TestStopDetailHandler(t *testing.T) {
-	h := NewStopDetail(&mockLTA{})
+	h := NewStopDetail(&mockLTA{}, testStore(t))
 
 	req := httptest.NewRequest("GET", "/api/v1/stops/12345/arrivals", nil)
 	req.SetPathValue("code", "12345")
@@ -70,7 +81,7 @@ func TestServiceLess(t *testing.T) {
 }
 
 func TestStopDetailHandlerMissingCode(t *testing.T) {
-	h := NewStopDetail(&mockLTA{})
+	h := NewStopDetail(&mockLTA{}, testStore(t))
 
 	req := httptest.NewRequest("GET", "/api/v1/stops//arrivals", nil)
 	rec := httptest.NewRecorder()

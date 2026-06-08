@@ -43,6 +43,9 @@
             <button class="btn btn-ghost" @click="showNearby()">
                 <i class="fas fa-location-dot"></i> <span>Nearby</span>
             </button>
+            <button class="btn btn-ghost" @click="showServiceSearch()">
+                <i class="fas fa-magnifying-glass"></i> <span>Services</span>
+            </button>
             <div class="header-pill">
                 <button class="btn-icon" @click="openSync()" aria-label="Sync devices" title="Sync devices">
                     <i class="fas fa-link" :style="authToken ? 'color: #4f6ef7' : 'opacity: 0.5'"></i>
@@ -76,11 +79,11 @@
         </h1>
 
         <!-- Arrivals -->
-        <div class="stop-services">
+        <div class="card-list">
             {{range .Stop.Services}}
             <div class="stop-service-card">
                 <div class="stop-service-row">
-                    <span class="card-service">{{.ServiceNumber}}</span>
+                    <a href="/service/{{.ServiceNumber}}" class="card-service-link"><span class="card-service">{{.ServiceNumber}}</span></a>
                     <div class="arrivals">
                         <span class="arrival {{arrivalClass .Next1}}">{{formatArrival .Next1}}</span>
                         <span class="arrival {{arrivalClass .Next2}}">{{formatArrival .Next2}}</span>
@@ -99,10 +102,46 @@
     </div>
     {{end}}
 
+    {{if .ServiceRoute}}
+    <div x-show="!nearbyView">
+        <nav class="breadcrumbs" aria-label="Breadcrumb">
+            <ol>
+                <li><a href="/">Home</a></li>
+                <li aria-current="page">Bus {{.ServiceRoute.ServiceNo}}</li>
+            </ol>
+        </nav>
+
+        <h1 class="stop-heading">Bus {{.ServiceRoute.ServiceNo}} Route</h1>
+
+        <div class="direction-tabs">
+            {{if index .ServiceRoute.DirectionLabels 1}}<button class="direction-tab{{if eq .ServiceRoute.FirstDirection 1}} active{{end}}">{{index .ServiceRoute.DirectionLabels 1}}</button>{{end}}
+            {{if index .ServiceRoute.DirectionLabels 2}}<button class="direction-tab{{if eq .ServiceRoute.FirstDirection 2}} active{{end}}">{{index .ServiceRoute.DirectionLabels 2}}</button>{{end}}
+        </div>
+
+        <div class="card-list">
+            {{range .ServiceRoute.Stops}}
+            {{if eq .Direction $.ServiceRoute.FirstDirection}}
+            <div class="stop-card">
+                <a href="/stop/{{.Code}}" class="card-service-link" style="display:flex;justify-content:space-between;align-items:center;width:100%;">
+                    <div class="stop-card-left">
+                        <span class="stop-card-name">{{if .Description}}{{.Description}}{{else}}{{.RoadName}}{{end}}</span>
+                        {{if and .Description (ne .Description .RoadName)}}<span class="stop-card-road">{{.RoadName}}</span>{{end}}
+                    </div>
+                    <div class="stop-card-right">
+                        <span class="stop-card-code">{{.Code}}</span>
+                    </div>
+                </a>
+            </div>
+            {{end}}
+            {{end}}
+        </div>
+    </div>
+    {{end}}
+
     <div x-show="!nearbyView">
 
     <!-- Search -->
-    <div class="search-wrap" x-show="groups.length > 0 || searchTerm">
+    <div class="search-wrap">
         <i class="fas fa-search search-icon"></i>
         <input type="text" x-ref="searchInput" placeholder="Search shortcuts..." x-model="searchTerm" @input="filter">
         <span class="search-hint" x-show="!searchTerm">Ctrl+K</span>
@@ -175,10 +214,9 @@
                                     <span class="card-stop-desc" x-text="cardSubtitle(s)"></span>
                                 </template>
                             </div>
-                            <div class="card-stop-right">
-                                <span class="card-stop-code" x-text="s.stopNumber"></span>
-                                <i class="fas fa-chevron-right"></i>
-                            </div>
+                            <div class="stop-card-right">
+                                <span class="stop-card-code" x-text="s.stopNumber"></span>
+                                    </div>
                         </div>
                         <div class="card-actions">
                             <button class="card-edit" x-sort:ignore @click.stop="edit(gi, si)" title="Edit">
@@ -202,6 +240,10 @@
         <button class="btn btn-primary" @click="showAddModal = true">
             <i class="fas fa-plus"></i> Add your first
         </button>
+        <button class="btn btn-ghost" @click="showNearby()" style="margin-top:8px;">
+            <i class="fas fa-location-dot"></i> Find stops nearby
+        </button>
+        <p style="margin-top:12px;font-size:13px;color:var(--text-tertiary);">Or search for a bus service like 5, 188, or 960 to see its route.</p>
     </div>
 
     <!-- Empty (filtered to nothing) -->
@@ -214,7 +256,14 @@
 
     <!-- ── Nearby Stops List ── -->
     <div x-show="nearbyView === 'stops'" x-cloak>
-        <div class="nearby-header">
+        <nav class="breadcrumbs" aria-label="Breadcrumb">
+            <ol>
+                <li><a href="/" @click.prevent="nearbyView = ''; history.pushState({view: 'home'}, '', '/')">Home</a></li>
+                <li aria-current="page">Nearby Stops</li>
+            </ol>
+        </nav>
+
+        <div class="view-header">
             <button class="btn-icon" @click="goBack()"><i class="fas fa-arrow-left"></i></button>
             <h2>Nearby Stops</h2>
             <div></div>
@@ -237,7 +286,7 @@
 
         <div class="search-wrap" x-show="!nearbyLoading && nearbyStops.length > 0" style="margin-top: 0;">
             <i class="fas fa-search search-icon"></i>
-            <input type="text" placeholder="Filter stops..." x-model="nearbySearch" @input="applyNearbyFilter()" autocomplete="off" style="font-size: 14px;">
+            <input type="text" placeholder="Filter stops..." x-model="nearbySearch" @input="applyNearbyFilter()" autocomplete="off">
             <button class="search-clear" x-show="nearbySearch" @click="nearbySearch = ''; applyNearbyFilter()">
                 <i class="fas fa-times"></i>
             </button>
@@ -248,18 +297,109 @@
         </div>
 
         <template x-if="!nearbyLoading && nearbyStops.length > 0 && filteredNearbyStops.length > 0">
-            <div class="nearby-stops">
+            <div class="stop-cards">
                 <template x-for="stop in filteredNearbyStops" :key="stop.code">
-                    <div class="nearby-stop-card" @click="selectStop(stop.code, stop.roadName)">
-                        <div class="nearby-stop-main">
-                            <span class="nearby-stop-name" x-text="stop.description"></span>
-                            <span class="nearby-stop-road" x-text="stop.roadName"></span>
+                    <div class="stop-card" @click="selectStop(stop.code, stop.roadName)">
+                        <div class="stop-card-main">
+                            <span class="stop-card-name" x-text="stop.description"></span>
+                            <span class="stop-card-road" x-text="stop.roadName"></span>
                         </div>
-                        <div class="nearby-stop-right">
-                            <span class="nearby-stop-dist" x-text="stop.distance < 1000 ? Math.round(stop.distance) + 'm' : (stop.distance / 1000).toFixed(1) + 'km'"></span>
-                            <span class="nearby-stop-code" x-text="stop.code"></span>
-                            <i class="fas fa-chevron-right"></i>
+                        <div class="stop-card-right">
+                            <span class="stop-card-dist" x-text="stop.distance < 1000 ? Math.round(stop.distance) + 'm' : (stop.distance / 1000).toFixed(1) + 'km'"></span>
+                            <span class="stop-card-code" x-text="stop.code"></span>
+                            </div>
+                    </div>
+                </template>
+            </div>
+        </template>
+    </div>
+
+    <!-- ── Service Search ── -->
+    <div x-show="nearbyView === 'serviceSearch'" x-cloak>
+        <nav class="breadcrumbs" aria-label="Breadcrumb">
+            <ol>
+                <li><a href="/" @click.prevent="nearbyView = ''; history.pushState({view: 'home'}, '', '/')">Home</a></li>
+                <li aria-current="page">Find Bus Service</li>
+            </ol>
+        </nav>
+
+        <div class="view-header">
+            <button class="btn-icon" @click="nearbyView = ''; _stopStopPolling(); history.pushState({view: 'home'}, '', '/')"><i class="fas fa-arrow-left"></i></button>
+            <h2>Find Bus Service</h2>
+            <div></div>
+        </div>
+        <div class="search-wrap" style="margin:0 0 16px 0;">
+            <i class="fas fa-search search-icon"></i>
+            <input type="text" placeholder="Enter bus service number (e.g. 5, 188, 960)" x-model="serviceSearchTerm" @input.debounce.300ms="searchServices()" autocomplete="off">
+            <button class="search-clear" x-show="serviceSearchTerm" @click="serviceSearchTerm = ''; serviceResults = []">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <div x-show="serviceLoading" class="empty-state">
+            <div class="empty-icon"><i class="fas fa-spinner fa-spin"></i></div>
+            <p>Searching...</p>
+        </div>
+
+        <div x-show="!serviceLoading && serviceSearchTerm && serviceResults.length === 0" class="empty-state">
+            <div class="empty-icon"><i class="fas fa-magnifying-glass"></i></div>
+            <p>No services match "<span x-text="serviceSearchTerm"></span>"</p>
+        </div>
+
+        <template x-if="!serviceLoading && serviceResults.length > 0">
+            <div class="card-list">
+                <template x-for="svc in serviceResults" :key="svc.serviceNo">
+                    <div class="stop-service-card" @click="showServiceRoute(svc.serviceNo)" style="cursor:pointer;">
+                        <div class="stop-service-row">
+                            <span class="card-service" x-text="'' + svc.serviceNo"></span>
+                            <span class="stop-service-meta" x-text="svc.operator || 'Tap to see route'"></span>
                         </div>
+                    </div>
+                </template>
+            </div>
+        </template>
+    </div>
+
+    <!-- ── Service Route Detail ── -->
+    <div x-show="nearbyView === 'serviceRoute'" x-cloak>
+        <nav class="breadcrumbs" aria-label="Breadcrumb">
+            <ol>
+                <li><a href="/" @click.prevent="nearbyView = ''; selectedStop = null; history.pushState({view: 'home'}, '', '/')">Home</a></li>
+                <li aria-current="page"><span x-text="'Bus ' + selectedService"></span></li>
+            </ol>
+        </nav>
+
+        <div class="view-header">
+            <button class="btn-icon" @click="goBack()"><i class="fas fa-arrow-left"></i></button>
+            <h2 x-text="'Bus ' + selectedService"></h2>
+            <div></div>
+        </div>
+
+        <div x-show="serviceStopsLoading" class="empty-state">
+            <div class="empty-icon"><i class="fas fa-spinner fa-spin"></i></div>
+            <p>Loading route...</p>
+        </div>
+
+        <template x-if="!serviceStopsLoading && serviceStops.length > 0">
+            <div>
+                <div class="direction-tabs">
+                    <template x-for="(dirStops, dir) in groupedServiceStops()" :key="dir">
+                        <button class="direction-tab" :class="{ active: selectedDirection === parseInt(dir) }" @click="selectedDirection = parseInt(dir)" x-text="getDirectionLabel(parseInt(dir))"></button>
+                    </template>
+                </div>
+                <template x-for="(dirStops, dir) in groupedServiceStops()" :key="dir">
+                    <div class="card-list" x-show="selectedDirection === parseInt(dir)">
+                        <template x-for="st in dirStops" :key="st.sequence">
+                            <div class="stop-card" @click="selectStop(st.stopCode, st.roadName || 'Stop ' + st.stopCode)" style="cursor:pointer;">
+                                <div class="stop-card-left">
+                                    <span class="stop-card-name" x-text="st.description || st.roadName || 'Stop ' + st.stopCode"></span>
+                                    <span class="stop-card-road" x-text="st.description && st.description !== st.roadName ? st.roadName : ''" x-show="st.description && st.description !== st.roadName"></span>
+                                </div>
+                                <div class="stop-card-right">
+                                    <span class="stop-card-code" x-text="st.stopCode"></span>
+                                            </div>
+                            </div>
+                        </template>
                     </div>
                 </template>
             </div>
@@ -275,11 +415,11 @@
             </ol>
         </nav>
 
-        <div class="nearby-header">
+        <div class="view-header">
             <button class="btn-icon" @click="goBack()"><i class="fas fa-arrow-left"></i></button>
-            <div class="nearby-header-title">
-                <span class="nearby-stop-name" x-text="selectedStop?.roadName"></span>
-                <span class="nearby-stop-code" x-text="selectedStop?.code"></span>
+            <div class="view-header-title">
+                <span class="stop-card-name" x-text="selectedStop?.roadName"></span>
+                <span class="stop-card-code" x-text="selectedStop?.code"></span>
             </div>
             <button class="btn btn-ghost" @click.stop="addShortcutFromStop(selectedStop.code)" x-show="!isShortcutStop(selectedStop?.code)" style="font-size:13px;padding:6px 12px;white-space:nowrap;">
                 <i class="fas fa-plus"></i> Add Stop
@@ -303,11 +443,11 @@
         </div>
 
         <template x-if="!selectedStop?.loading && !selectedStop?.error && selectedStop?.services && selectedStop.services.length > 0">
-            <div class="stop-services">
+            <div class="card-list">
                 <template x-for="svc in selectedStop.services" :key="svc.serviceNo">
                     <div class="stop-service-card">
                         <div class="stop-service-row">
-                            <span class="card-service" x-text="svc.serviceNo" style="font-size: 28px;"></span>
+                            <a :href="'/service/' + svc.serviceNo" @click.prevent="showServiceRoute(svc.serviceNo)" class="card-service-link"><span class="card-service" x-text="svc.serviceNo" style="font-size: 28px;"></span></a>
                             <div class="arrivals">
                                 <span class="arrival" :class="arrivalClass(svc.next1)" x-text="formatArrival(svc.next1)"></span>
                                 <span class="arrival" :class="arrivalClass(svc.next2)" x-text="formatArrival(svc.next2)"></span>

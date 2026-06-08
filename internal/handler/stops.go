@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/aattwwss/yabatasg/internal/lta"
+	"github.com/aattwwss/yabatasg/internal/store"
 )
 
 type StopDetailClient interface {
@@ -16,11 +17,12 @@ type StopDetailClient interface {
 }
 
 type StopDetail struct {
-	lta StopDetailClient
+	lta   StopDetailClient
+	store *store.Store
 }
 
-func NewStopDetail(client StopDetailClient) *StopDetail {
-	return &StopDetail{lta: client}
+func NewStopDetail(client StopDetailClient, s *store.Store) *StopDetail {
+	return &StopDetail{lta: client, store: s}
 }
 
 type StopArrivalResponse struct {
@@ -67,6 +69,11 @@ func (h *StopDetail) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Next2:         new(DiffMinutes(svc.NextBus2.EstimatedArrival.Time, now)),
 			Next3:         new(DiffMinutes(svc.NextBus3.EstimatedArrival.Time, now)),
 		})
+		if svc.Operator != "" {
+			if err := h.store.UpsertServiceOperator(svc.ServiceNumber, svc.Operator); err != nil {
+				slog.Warn("Failed to upsert operator", "serviceNo", svc.ServiceNumber, "error", err)
+			}
+		}
 	}
 
 	sort.Slice(resp.Services, func(i, j int) bool {

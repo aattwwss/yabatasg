@@ -22,22 +22,41 @@ type TemplateData struct {
 	OGDescription string
 	OGURL         string
 
-	JSONLD      template.JS
+	JSONLD       template.JS
 	BreadcrumbLD template.JS
 
 	Stop *StopRenderData
+
+	ServiceRoute *ServiceRouteRenderData
 
 	InitialState template.JS
 }
 
 // StopRenderData carries stop info and arrival data for SSR and initial state hydration.
 type StopRenderData struct {
-	Code         string          `json:"code"`
-	RoadName     string          `json:"roadName"`
-	Description  string          `json:"description"`
-	Latitude     float64         `json:"latitude"`
-	Longitude    float64         `json:"longitude"`
-	Services     []ServiceTiming `json:"services"`
+	Code        string          `json:"code"`
+	RoadName    string          `json:"roadName"`
+	Description string          `json:"description"`
+	Latitude    float64         `json:"latitude"`
+	Longitude   float64         `json:"longitude"`
+	Services    []ServiceTiming `json:"services"`
+}
+
+// ServiceRouteRenderData carries bus route data for SSR and initial state hydration.
+type ServiceRouteRenderData struct {
+	ServiceNo       string             `json:"serviceNo"`
+	Stops           []ServiceRouteStop `json:"stops"`
+	FirstDirection  int                `json:"-"`
+	DirectionLabels map[int]string     `json:"-"`
+}
+
+// ServiceRouteStop is a single stop along a bus route.
+type ServiceRouteStop struct {
+	Code        string `json:"stopCode"`
+	RoadName    string `json:"roadName"`
+	Description string `json:"description"`
+	Direction   int    `json:"direction"`
+	Sequence    int    `json:"sequence"`
 }
 
 // BuildHomeJSONLD returns a WebSite + SearchAction JSON-LD script for the homepage.
@@ -48,11 +67,11 @@ func BuildHomeJSONLD() template.JS {
 		QueryInput string `json:"query-input"`
 	}
 	type website struct {
-		Context          string            `json:"@context"`
-		Type             string            `json:"@type"`
-		Name             string            `json:"name"`
-		URL              string            `json:"url"`
-		Description      string            `json:"description"`
+		Context         string           `json:"@context"`
+		Type            string           `json:"@type"`
+		Name            string           `json:"name"`
+		URL             string           `json:"url"`
+		Description     string           `json:"description"`
 		PotentialAction *potentialAction `json:"potentialAction,omitempty"`
 	}
 
@@ -89,22 +108,22 @@ func BuildStopJSONLD(stop *StopRenderData) template.JS {
 		AddressCountry  string `json:"addressCountry"`
 	}
 	type trip struct {
-		Type        string  `json:"@type"`
-		Name        string  `json:"name"`
-		Provider    *place  `json:"provider,omitempty"`
-		Description string  `json:"description,omitempty"`
+		Type        string `json:"@type"`
+		Name        string `json:"name"`
+		Provider    *place `json:"provider,omitempty"`
+		Description string `json:"description,omitempty"`
 	}
 	type ld struct {
-		Context          string  `json:"@context"`
-		Type             string  `json:"@type"`
-		Name             string  `json:"name"`
-		Identifier       string  `json:"identifier"`
-		URL              string  `json:"url"`
-		Description      string  `json:"description"`
-		ContainedInPlace place   `json:"containedInPlace"`
-		Geo              *geo    `json:"geo,omitempty"`
+		Context          string   `json:"@context"`
+		Type             string   `json:"@type"`
+		Name             string   `json:"name"`
+		Identifier       string   `json:"identifier"`
+		URL              string   `json:"url"`
+		Description      string   `json:"description"`
+		ContainedInPlace place    `json:"containedInPlace"`
+		Geo              *geo     `json:"geo,omitempty"`
 		Address          *address `json:"address,omitempty"`
-		ContainsOffer    []trip  `json:"containsOffer"`
+		ContainsOffer    []trip   `json:"containsOffer"`
 	}
 
 	trips := make([]trip, 0, len(stop.Services))
@@ -190,9 +209,38 @@ func BuildBreadcrumbJSONLD(code, roadName string) template.JS {
 	return template.JS(b)
 }
 
+// BuildServiceRouteJSONLD constructs a JSON-LD script for a bus route page.
+func BuildServiceRouteJSONLD(serviceNo string) template.JS {
+	type ld struct {
+		Context     string `json:"@context"`
+		Type        string `json:"@type"`
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		URL         string `json:"url"`
+	}
+
+	b, _ := json.Marshal(ld{
+		Context:     "https://schema.org",
+		Type:        "BusTrip",
+		Name:        fmt.Sprintf("Bus %s Route", serviceNo),
+		Description: fmt.Sprintf("Bus route and stops for service %s in Singapore. Powered by LTA DataMall.", serviceNo),
+		URL:         fmt.Sprintf("https://yabatasg.com/service/%s", serviceNo),
+	})
+	return template.JS(b)
+}
+
 // BuildInitialState serializes stop data for Alpine.js hydration.
 func BuildInitialState(stop *StopRenderData) (template.JS, error) {
 	data, err := json.Marshal(stop)
+	if err != nil {
+		return "", err
+	}
+	return template.JS(data), nil
+}
+
+// BuildServiceInitialState serializes service route data for Alpine.js hydration.
+func BuildServiceInitialState(sr *ServiceRouteRenderData) (template.JS, error) {
+	data, err := json.Marshal(sr)
 	if err != nil {
 		return "", err
 	}

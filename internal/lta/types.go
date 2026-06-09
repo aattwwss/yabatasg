@@ -64,3 +64,11 @@ type BusStop struct {
 	Latitude    float64 `json:"Latitude"`
 	Longitude   float64 `json:"Longitude"`
 }
+
+type BusRoute struct {
+	ServiceNo    string  `json:"ServiceNo"`
+	Direction    int     `json:"Direction"`
+	StopSequence int     `json:"StopSequence"`
+	BusStopCode  string  `json:"BusStopCode"`
+	Distance     float64 `json:"Distance"`
+}

@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/aattwwss/yabatasg/internal/store"
@@ -52,7 +53,15 @@ func (h *StopPage) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				Next2:         new(DiffMinutes(svc.NextBus2.EstimatedArrival.Time, now)),
 				Next3:         new(DiffMinutes(svc.NextBus3.EstimatedArrival.Time, now)),
 			})
+			if svc.Operator != "" {
+				if err := h.store.UpsertServiceOperator(svc.ServiceNumber, svc.Operator); err != nil {
+					slog.Warn("Failed to upsert operator", "serviceNo", svc.ServiceNumber, "error", err)
+				}
+			}
 		}
+		sort.Slice(services, func(i, j int) bool {
+			return serviceLess(services[i].ServiceNumber, services[j].ServiceNumber)
+		})
 	} else {
 		slog.Warn("Failed to fetch arrivals for SSR", "code", code, "error", err)
 	}

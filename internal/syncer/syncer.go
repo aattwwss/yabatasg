@@ -11,6 +11,8 @@ import (
 
 type LTAClient interface {
 	GetBusStops(ctx context.Context, skip int) (*lta.Response[lta.BusStop], error)
+	GetBusRoutes(ctx context.Context, skip int) (*lta.Response[lta.BusRoute], error)
+	GetBusArrival(ctx context.Context, busStopCode, serviceNumber string) (*lta.BusArrival, error)
 }
 
 type Syncer struct {
@@ -70,5 +72,102 @@ func (sy *Syncer) SyncNow() error {
 	}
 
 	slog.Info("Bus stops synced", "count", len(all))
+
+	slog.Info("Syncing bus routes from LTA")
+	var allRoutes []lta.BusRoute
+	for skip := 0; ; skip += 500 {
+		res, err := sy.client.GetBusRoutes(context.Background(), skip)
+		if err != nil {
+			slog.Error("Failed to fetch bus routes", "skip", skip, "error", err)
+			return err
+		}
+		allRoutes = append(allRoutes, res.Value...)
+		if len(res.Value) < 500 {
+			break
+		}
+	}
+
+	if err := sy.store.SyncRoutes(allRoutes); err != nil {
+		slog.Error("Failed to sync bus routes to store", "error", err)
+		return err
+	}
+
+	slog.Info("Bus routes synced", "count", len(allRoutes))
+
+	if err := sy.store.SeedServiceOperators(); err != nil {
+		slog.Error("Failed to seed service operators", "error", err)
+	}
+
+	sy.syncOperators()
+
 	return nil
+}
+
+func (sy *Syncer) queryStopsForOperators(stops map[string][]string) int {
+	var synced int
+	for stopCode := range stops {
+		arrivals, err := sy.client.GetBusArrival(context.Background(), stopCode, "")
+		if err != nil {
+			slog.Warn("Failed to fetch arrivals for operator sync", "stopCode", stopCode, "error", err)
+			continue
+		}
+		for _, svc := range arrivals.Services {
+			if svc.Operator != "" {
+				if err := sy.store.UpsertServiceOperator(svc.ServiceNumber, svc.Operator); err != nil {
+					slog.Warn("Failed to upsert operator", "serviceNo", svc.ServiceNumber, "error", err)
+				}
+			}
+		}
+		synced++
+	}
+	return synced
+}
+
+func (sy *Syncer) syncOperators() {
+	refs, err := sy.store.DistinctServiceStops()
+	if err != nil {
+		slog.Error("Failed to get distinct services for operator sync", "error", err)
+		return
+	}
+
+	// Group by stop code to minimize API calls.
+	byStop := make(map[string][]string)
+	queriedStops := make(map[string]bool)
+	for _, r := range refs {
+		byStop[r.StopCode] = append(byStop[r.StopCode], r.ServiceNo)
+		queriedStops[r.StopCode] = true
+	}
+
+	slog.Info("Syncing bus operators", "stops", len(byStop), "services", len(refs))
+	synced := sy.queryStopsForOperators(byStop)
+	slog.Info("Bus operators first pass", "stops_queried", synced)
+
+	// Second pass: services still missing operators, try different stops.
+	missing, err := sy.store.MissingOperatorServices()
+	if err != nil {
+		slog.Error("Failed to get missing operator services", "error", err)
+		return
+	}
+	if len(missing) == 0 {
+		return
+	}
+
+	// Second pass: use the other direction's first stop (direction 2, stop 1).
+	altRefs, err := sy.store.AlternateServiceStops()
+	if err != nil {
+		slog.Error("Failed to get alternate stops", "error", err)
+		return
+	}
+	byStop = make(map[string][]string)
+	for _, r := range altRefs {
+		if !queriedStops[r.StopCode] {
+			byStop[r.StopCode] = append(byStop[r.StopCode], r.ServiceNo)
+		}
+	}
+
+	if len(byStop) > 0 {
+		slog.Info("Syncing bus operators (retry)", "stops", len(byStop), "services", len(missing))
+		synced = sy.queryStopsForOperators(byStop)
+		slog.Info("Bus operators second pass", "stops_queried", synced)
+	}
 }

@@ -10,7 +10,20 @@ import (
 )
 
 type mockClient struct {
-	stops []lta.BusStop
+	stops    []lta.BusStop
+	routes   []lta.BusRoute
+	arrivals map[string]*lta.BusArrival // key: stopCode
+}
+
+func (m *mockClient) GetBusRoutes(ctx context.Context, skip int) (*lta.Response[lta.BusRoute], error) {
+	if skip >= len(m.routes) {
+		return &lta.Response[lta.BusRoute]{Value: []lta.BusRoute{}}, nil
+	}
+	end := skip + 500
+	if end > len(m.routes) {
+		end = len(m.routes)
+	}
+	return &lta.Response[lta.BusRoute]{Value: m.routes[skip:end]}, nil
 }
 
 func (m *mockClient) GetBusStops(ctx context.Context, skip int) (*lta.Response[lta.BusStop], error) {
@@ -22,6 +35,13 @@ func (m *mockClient) GetBusStops(ctx context.Context, skip int) (*lta.Response[l
 		end = len(m.stops)
 	}
 	return &lta.Response[lta.BusStop]{Value: m.stops[skip:end]}, nil
+}
+
+func (m *mockClient) GetBusArrival(ctx context.Context, busStopCode, serviceNumber string) (*lta.BusArrival, error) {
+	if a, ok := m.arrivals[busStopCode]; ok {
+		return a, nil
+	}
+	return &lta.BusArrival{BusStopCode: busStopCode}, nil
 }
 
 func TestSyncNow(t *testing.T) {
@@ -93,5 +113,56 @@ func TestSyncNowPagination(t *testing.T) {
 	}
 	if len(results) != 600 {
 		t.Errorf("expected 600 stops, got %d", len(results))
+	}
+}
+
+func TestSyncNowOperators(t *testing.T) {
+	s, err := store.New(":memory:")
+	if err != nil {
+		t.Fatalf("failed to open store: %v", err)
+	}
+	defer s.Close()
+
+	client := &mockClient{
+		stops: []lta.BusStop{
+			{BusStopCode: "S1", RoadName: "Road 1", Description: "Desc 1", Latitude: 1.3, Longitude: 103.8},
+		},
+		routes: []lta.BusRoute{
+			{ServiceNo: "5", Direction: 1, StopSequence: 1, BusStopCode: "S1", Distance: 0},
+			{ServiceNo: "51", Direction: 1, StopSequence: 1, BusStopCode: "S1", Distance: 0},
+		},
+		arrivals: map[string]*lta.BusArrival{
+			"S1": {
+				BusStopCode: "S1",
+				Services: []lta.Service{
+					{ServiceNumber: "5", Operator: "SBST"},
+					{ServiceNumber: "51", Operator: "SMRT"},
+				},
+			},
+		},
+	}
+
+	syncer := New(s, client)
+	if err := syncer.SyncNow(); err != nil {
+		t.Fatalf("SyncNow failed: %v", err)
+	}
+
+	results, err := s.SearchServices("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 services, got %d", len(results))
+	}
+
+	ops := map[string]string{}
+	for _, r := range results {
+		ops[r.ServiceNo] = r.Operator
+	}
+	if ops["5"] != "SBST" {
+		t.Errorf("expected SBST for service 5, got %q", ops["5"])
+	}
+	if ops["51"] != "SMRT" {
+		t.Errorf("expected SMRT for service 51, got %q", ops["51"])
 	}
 }

@@ -36,13 +36,25 @@ function busApp() {
         _toastId: 0,
 
         // nearby
-        nearbyView: '',
+        currentView: '',
         nearbyStops: [],
         selectedStop: null,
         geoError: '',
         nearbyLoading: false,
         nearbySearch: '',
         filteredNearbyStops: [],
+
+        // service search
+        serviceSearchTerm: '',
+        serviceResults: [],
+        serviceLoading: false,
+        selectedService: '',
+        serviceStops: [],
+        serviceStopsLoading: false,
+        selectedDirection: 0,
+
+        // ssr
+        ssrConsumed: false,
 
         // sync
         AUTH_TOKEN_KEY: 'busAppToken',
@@ -71,9 +83,12 @@ function busApp() {
         // ── Routing ──
         _parsePath() {
             const path = window.location.pathname;
-            const match = path.match(/^\/stop\/(\d+)\/?$/);
-            if (match) return { view: 'stop', code: match[1] };
+            const stopMatch = path.match(/^\/stop\/(\d+)\/?$/);
+            if (stopMatch) return { view: 'stop', code: stopMatch[1] };
+            const serviceMatch = path.match(/^\/service\/(.+)\/?$/);
+            if (serviceMatch) return { view: 'serviceRoute', serviceNo: serviceMatch[1] };
             if (path === '/nearby') return { view: 'stops' };
+            if (path === '/services') return { view: 'serviceSearch' };
             return { view: 'home' };
         },
 
@@ -101,7 +116,7 @@ function busApp() {
 
         _applyRoute(route) {
             if (route.view === 'home') {
-                this.nearbyView = '';
+                this.currentView = '';
                 this.selectedStop = null;
                 this._stopStopPolling();
             } else if (route.view === 'stops') {
@@ -109,7 +124,7 @@ function busApp() {
                 if (this.nearbyStops.length === 0 && !this.nearbyLoading) {
                     this._startNearby();
                 } else {
-                    this.nearbyView = 'stops';
+                    this.currentView = 'stops';
                 }
             } else if (route.view === 'stop') {
                 const code = route.code;
@@ -121,10 +136,17 @@ function busApp() {
                     loading: true,
                     error: ''
                 };
-                this.nearbyView = 'stopDetail';
-                // Always fetch fresh — no global poll keeping data warm.
+                this.currentView = 'stopDetail';
                 this._loadStopDetail(code);
                 this._startStopPolling(code);
+            } else if (route.view === 'serviceSearch') {
+                this._stopStopPolling();
+                this.selectedStop = null;
+                this.currentView = 'serviceSearch';
+            } else if (route.view === 'serviceRoute') {
+                this._stopStopPolling();
+                this.selectedStop = null;
+                this.showServiceRoute(route.serviceNo);
             }
         },
 
@@ -151,6 +173,15 @@ function busApp() {
         _hydrateFromSSR() {
             if (!window.__INITIAL_STATE__) return null;
             const state = window.__INITIAL_STATE__;
+            this.ssrConsumed = true;
+            if (state.serviceNo) {
+                this.selectedService = state.serviceNo;
+                this.serviceStops = state.stops || [];
+                this.selectedDirection = this.serviceStops.length > 0 ? (this.serviceStops[0].direction || 0) : 0;
+                this.currentView = 'serviceRoute';
+                delete window.__INITIAL_STATE__;
+                return state.serviceNo;
+            }
             this.selectedStop = {
                 code: state.code,
                 roadName: state.roadName,
@@ -158,7 +189,7 @@ function busApp() {
                 loading: false,
                 error: ''
             };
-            this.nearbyView = 'stopDetail';
+            this.currentView = 'stopDetail';
             this._startStopPolling(state.code);
             delete window.__INITIAL_STATE__;
             return state.code;
@@ -184,9 +215,9 @@ function busApp() {
         },
 
         _refresh() {
-            if (this.nearbyView === 'stops' && !this.nearbyLoading) {
+            if (this.currentView === 'stops' && !this.nearbyLoading) {
                 this._startNearby();
-            } else if (this.nearbyView === 'stopDetail' && this.selectedStop) {
+            } else if (this.currentView === 'stopDetail' && this.selectedStop) {
                 this._loadStopDetail(this.selectedStop.code);
             }
         },
@@ -194,12 +225,12 @@ function busApp() {
         _onPopState(e) {
             const route = this._parsePath();
             if (route.view === 'home') {
-                this.nearbyView = '';
+                this.currentView = '';
                 this.selectedStop = null;
                 this._stopStopPolling();
             } else if (route.view === 'stops') {
                 this._stopStopPolling();
-                this.nearbyView = 'stops';
+                this.currentView = 'stops';
                 if (this.nearbyStops.length === 0 && !this.nearbyLoading) {
                     this._startNearby();
                 }
@@ -223,11 +254,23 @@ function busApp() {
                         error: ''
                     };
                 }
-                this.nearbyView = 'stopDetail';
+                this.currentView = 'stopDetail';
                 this._startStopPolling(code);
                 const svcs = this.selectedStop.services;
                 if (!svcs || svcs.length === 0 || this._isStale(e.state?.cachedAt)) {
                     this._loadStopDetail(code);
+                }
+            } else if (route.view === 'serviceSearch') {
+                this._stopStopPolling();
+                this.selectedStop = null;
+                this.currentView = 'serviceSearch';
+            } else if (route.view === 'serviceRoute') {
+                this._stopStopPolling();
+                this.selectedStop = null;
+                this.currentView = 'serviceRoute';
+                this.selectedService = route.serviceNo;
+                if (this.serviceStops.length === 0 || this.selectedService !== (e.state?.serviceNo)) {
+                    this._loadServiceRoute(route.serviceNo);
                 }
             }
         },
@@ -553,7 +596,7 @@ function busApp() {
         },
 
         _startNearby() {
-            this.nearbyView = 'stops';
+            this.currentView = 'stops';
             this.geoError = '';
             this.nearbyStops = [];
             this.filteredNearbyStops = [];
@@ -599,7 +642,7 @@ function busApp() {
         },
 
         async selectStop(code, roadName) {
-            this.nearbyView = 'stopDetail';
+            this.currentView = 'stopDetail';
             this.selectedStop = { code, roadName, services: [], loading: true, error: '' };
             history.pushState({ view: 'stop', code, roadName }, '', `/stop/${code}`);
             this._loadStopDetail(code);
@@ -626,12 +669,76 @@ function busApp() {
             this.form.stopNumber = stopCode;
             this.form.name = '';
             this.form.groupName = this.groups.length > 0 ? this.groups[0].name : '';
-            this.nearbyView = '';
+            this.currentView = '';
             this.selectedStop = null;
             history.pushState({ view: 'home' }, '', '/');
             this.showAddModal = true;
             const info = await this._lookupStop(stopCode);
             if (info) { this.form.name = info.roadName || ''; }
+        },
+
+        // ── Service Search ──
+        showServiceSearch() {
+            this.currentView = 'serviceSearch';
+            this.selectedStop = null;
+            this._stopStopPolling();
+            this.serviceSearchTerm = '';
+            this.serviceResults = [];
+            history.pushState({ view: 'serviceSearch' }, '', '/services');
+        },
+
+        async searchServices() {
+            const q = this.serviceSearchTerm.trim();
+            if (!q) { this.serviceResults = []; return; }
+            this.serviceLoading = true;
+            try {
+                const r = await fetch(`/api/v1/services/search?q=${encodeURIComponent(q)}`);
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                this.serviceResults = await r.json();
+            } catch {
+                this.serviceResults = [];
+            }
+            this.serviceLoading = false;
+        },
+
+        async showServiceRoute(no) {
+            this.currentView = 'serviceRoute';
+            this.selectedService = no;
+            this.selectedStop = null;
+            this._stopStopPolling();
+            history.pushState({ view: 'serviceRoute', serviceNo: no }, '', `/service/${no}`);
+            await this._loadServiceRoute(no);
+        },
+
+        async _loadServiceRoute(no) {
+            this.serviceStopsLoading = true;
+            this.serviceStops = [];
+            try {
+                const r = await fetch(`/api/v1/services/${encodeURIComponent(no)}/stops`);
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                this.serviceStops = await r.json();
+            } catch {
+                this.serviceStops = [];
+            }
+            this.serviceStopsLoading = false;
+            this.selectedDirection = this.serviceStops.length > 0 ? (this.serviceStops[0].direction || 0) : 0;
+        },
+
+        groupedServiceStops() {
+            if (!this.serviceStops || this.serviceStops.length === 0) return {};
+            const groups = {};
+            for (const st of this.serviceStops) {
+                const d = st.direction || 0;
+                (groups[d] = groups[d] || []).push(st);
+            }
+            return groups;
+        },
+
+        getDirectionLabel(dir) {
+            const dirStops = this.groupedServiceStops()[dir];
+            if (!dirStops || dirStops.length === 0) return 'Direction ' + dir;
+            const last = dirStops[dirStops.length - 1];
+            return 'To ' + (last.description || last.roadName || last.stopCode);
         },
 
         viewShortcutDetail(stopNumber) {
@@ -670,7 +777,7 @@ function busApp() {
             // Update the view: show cached data instantly if available,
             // then fetch fresh arrivals.
             this._closeSwipe();
-            this.nearbyView = 'stopDetail';
+            this.currentView = 'stopDetail';
             const hasCache = s.services && s.services.length > 0;
             this.selectedStop = {
                 code: s.stopNumber,

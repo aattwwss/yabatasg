@@ -61,7 +61,7 @@
     </header>
 
     {{if .Stop}}
-    <div x-show="!selectedStop">
+    <div x-show="!selectedStop && !ssrConsumed">
         <nav class="breadcrumbs" aria-label="Breadcrumb">
             <ol>
                 <li><a href="/">Home</a></li>
@@ -103,7 +103,7 @@
     {{end}}
 
     {{if .ServiceRoute}}
-    <div x-show="!nearbyView">
+    <div x-show="!nearbyView && !ssrConsumed">
         <nav class="breadcrumbs" aria-label="Breadcrumb">
             <ol>
                 <li><a href="/">Home</a></li>

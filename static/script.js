@@ -53,6 +53,9 @@ function busApp() {
         serviceStopsLoading: false,
         selectedDirection: 0,
 
+        // ssr
+        ssrConsumed: false,
+
         // sync
         AUTH_TOKEN_KEY: 'busAppToken',
         showSyncModal: false,
@@ -170,6 +173,7 @@ function busApp() {
         _hydrateFromSSR() {
             if (!window.__INITIAL_STATE__) return null;
             const state = window.__INITIAL_STATE__;
+            this.ssrConsumed = true;
             if (state.serviceNo) {
                 this.selectedService = state.serviceNo;
                 this.serviceStops = state.stops || [];

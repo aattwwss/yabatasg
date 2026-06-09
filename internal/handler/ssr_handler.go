@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/aattwwss/yabatasg/internal/store"
@@ -58,6 +59,9 @@ func (h *StopPage) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+		sort.Slice(services, func(i, j int) bool {
+			return serviceLess(services[i].ServiceNumber, services[j].ServiceNumber)
+		})
 	} else {
 		slog.Warn("Failed to fetch arrivals for SSR", "code", code, "error", err)
 	}

@@ -92,7 +92,7 @@ function busApp() {
             return { view: 'home' };
         },
 
-        _findCachedStop(code) {
+        _findShortcutByCode(code) {
             for (const g of this.groups) {
                 for (const s of g.shortcuts) {
                     if (s.stopNumber === code) return s;
@@ -101,13 +101,16 @@ function busApp() {
             return null;
         },
 
+        _findCachedStop(code) {
+            return this._findShortcutByCode(code);
+        },
+
         goBack() {
             history.back();
         },
 
         isShortcutStop(code) {
-            if (!code) return false;
-            return this.groups.some(g => g.shortcuts.some(s => s.stopNumber === code));
+            return code && !!this._findShortcutByCode(code);
         },
 
         _isStale(ts) {
@@ -289,6 +292,24 @@ function busApp() {
         },
 
         // ── Persistence ──
+        _normalizeShortcut(s) {
+            if (s.service !== undefined) {
+                s.services = [{
+                    serviceNo: s.service,
+                    operator: '',
+                    next1: (s.arrivals && s.arrivals[0] != null) ? s.arrivals[0] : null,
+                    next2: (s.arrivals && s.arrivals[1] != null) ? s.arrivals[1] : null,
+                    next3: (s.arrivals && s.arrivals[2] != null) ? s.arrivals[2] : null
+                }];
+                delete s.service;
+                delete s.arrivals;
+            }
+            if (!s.services) s.services = [];
+            s.roadName ??= '';
+            s.description ??= '';
+            s.lastFetched ??= 0;
+        },
+
         _load() {
             try {
                 const raw = localStorage.getItem(STORAGE_KEY);
@@ -296,22 +317,7 @@ function busApp() {
             } catch { this.groups = []; }
             for (const g of this.groups) {
                 for (const s of g.shortcuts) {
-                    // Migrate old per-service shortcuts to per-stop format
-                    if (s.service !== undefined) {
-                        s.services = [{
-                            serviceNo: s.service,
-                            operator: '',
-                            next1: (s.arrivals && s.arrivals[0] != null) ? s.arrivals[0] : null,
-                            next2: (s.arrivals && s.arrivals[1] != null) ? s.arrivals[1] : null,
-                            next3: (s.arrivals && s.arrivals[2] != null) ? s.arrivals[2] : null
-                        }];
-                        delete s.service;
-                        delete s.arrivals;
-                    }
-                    if (!s.services) s.services = [];
-                    s.roadName ??= '';
-                    s.description ??= '';
-                    s.lastFetched ??= 0;
+                    this._normalizeShortcut(s);
                 }
             }
         },
@@ -742,17 +748,7 @@ function busApp() {
         },
 
         viewShortcutDetail(stopNumber) {
-            // Find the shortcut by stop number across all groups.
-            let s = null;
-            for (let i = 0; i < this.groups.length; i++) {
-                for (let j = 0; j < this.groups[i].shortcuts.length; j++) {
-                    if (String(this.groups[i].shortcuts[j].stopNumber) === String(stopNumber)) {
-                        s = this.groups[i].shortcuts[j];
-                        break;
-                    }
-                }
-                if (s) break;
-            }
+            const s = this._findShortcutByCode(String(stopNumber));
             if (!s) return;
 
             // Push URL FIRST, before any Alpine state changes.
@@ -813,15 +809,7 @@ function busApp() {
                         }
                         for (const s of g.shortcuts) {
                             if (!s?.stopNumber) { this._toast('Invalid shortcut format', 'error'); return; }
-                            if (s.service !== undefined) {
-                                s.services = [{ serviceNo: s.service, operator: '', next1: null, next2: null, next3: null }];
-                                delete s.service;
-                                delete s.arrivals;
-                            }
-                            if (!s.services) s.services = [];
-                            s.roadName ??= '';
-                            s.description ??= '';
-                            s.lastFetched = 0;
+                            this._normalizeShortcut(s);
                         }
                     }
                     this.groups = data;
@@ -914,32 +902,8 @@ function busApp() {
                 this.authToken = j.token;
                 this._saveAuth();
                 // Fetch server config.
-                const cr = await fetch('/api/v1/config', {
-                    headers: { 'Authorization': 'Bearer ' + j.token }
-                });
-                if (cr.ok) {
-                    const cfg = await cr.json();
-                    if (Array.isArray(cfg) && cfg.length > 0) {
-                        this.groups = cfg;
-                        for (const g of this.groups) {
-                            for (const s of g.shortcuts) {
-                                if (s.service !== undefined) {
-                                    s.services = [{ serviceNo: s.service, operator: '', next1: null, next2: null, next3: null }];
-                                    delete s.service;
-                                }
-                                if (!s.services) s.services = [];
-                                s.roadName ??= '';
-                                s.description ??= '';
-                                s.lastFetched = 0;
-                            }
-                        }
-                        this._serializeGroups();
-                        localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
-                        this.filteredGroups = [...this.groups];
-                        this.loading = true;
-                        this.loading = false;
-                    }
-                }
+                await this._loadServerConfig(j.token);
+                this._serializeGroups();
                 // Fetch phrase for display.
                 const mr = await fetch('/api/v1/auth/me', {
                     headers: { 'Authorization': 'Bearer ' + j.token }
@@ -1057,6 +1021,25 @@ function busApp() {
         },
 
 
+        async _loadServerConfig(token) {
+            const cr = await fetch('/api/v1/config', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (cr.ok) {
+                const cfg = await cr.json();
+                if (Array.isArray(cfg) && cfg.length > 0) {
+                    this.groups = cfg;
+                    for (const g of this.groups) {
+                        for (const s of g.shortcuts) this._normalizeShortcut(s);
+                    }
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+                    this.filteredGroups = [...this.groups];
+                    this.loading = true;
+                    this.loading = false;
+                }
+            }
+        },
+
         async _syncToServer() {
             const data = this.groups.map(g => ({
                 name: g.name,
@@ -1084,31 +1067,7 @@ function busApp() {
                 this.syncPhrase = me.phrase;
                 localStorage.setItem('busAppPhrase', me.phrase);
 
-                const cr = await fetch('/api/v1/config', {
-                    headers: { 'Authorization': 'Bearer ' + this.authToken }
-                });
-                if (cr.ok) {
-                    const cfg = await cr.json();
-                    if (Array.isArray(cfg) && cfg.length > 0) {
-                        this.groups = cfg;
-                        for (const g of this.groups) {
-                            for (const s of g.shortcuts) {
-                                if (s.service !== undefined) {
-                                    s.services = [{ serviceNo: s.service, operator: '', next1: null, next2: null, next3: null }];
-                                    delete s.service;
-                                }
-                                if (!s.services) s.services = [];
-                                s.roadName ??= '';
-                                s.description ??= '';
-                                s.lastFetched = 0;
-                            }
-                        }
-                        localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
-                        this.filteredGroups = [...this.groups];
-                        this.loading = true;
-                        this.loading = false;
-                    }
-                }
+                await this._loadServerConfig(this.authToken);
             } catch { /* offline — use localStorage */ }
         },
 

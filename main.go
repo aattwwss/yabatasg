@@ -129,7 +129,6 @@ func main() {
 		buf.WriteString(`<?xml version="1.0" encoding="UTF-8"?>`)
 		buf.WriteString(`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`)
 		buf.WriteString(`<url><loc>https://yabatasg.com/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>`)
-		buf.WriteString(`<url><loc>https://yabatasg.com/nearby</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>`)
 		for _, code := range codes {
 			fmt.Fprintf(&buf, `<url><loc>https://yabatasg.com/stop/%s</loc><changefreq>always</changefreq><priority>0.7</priority></url>`, code)
 		}
@@ -145,7 +144,20 @@ func main() {
 		}
 	}
 	mux.HandleFunc("GET /", serveHome)
-	mux.HandleFunc("GET /nearby", serveHome)
+
+	nearbyData := baseData
+	nearbyData.Canonical = "https://yabatasg.com/nearby"
+	nearbyData.Title = "Nearby Bus Stops — Find Stops Around You | yabata Singapore"
+	nearbyData.Description = "Find bus stops near your current location in Singapore. View real-time arrival times for all services at nearby stops. Powered by LTA DataMall."
+	nearbyData.OGTitle = "Nearby Bus Stops | yabata"
+	nearbyData.OGDescription = "Find bus stops near you in Singapore. Powered by LTA DataMall."
+	nearbyData.OGURL = "https://yabatasg.com/nearby"
+	mux.HandleFunc("GET /nearby", func(w http.ResponseWriter, r *http.Request) {
+		if err := indexTmpl.Execute(w, nearbyData); err != nil {
+			slog.Error("Template execution failed", "error", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		}
+	})
 
 	stopPageHandler := handler.NewStopPage(stopsStore, ltaClient, baseData, indexTmpl)
 	mux.Handle("GET /stop/{code}", stopPageHandler)

@@ -23,6 +23,8 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/static/icon-180.png?v={{.Icon180}}">
     <script src="https://cdn.jsdelivr.net/npm/@alpinejs/sort@3.14.8/dist/cdn.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
     <link rel="stylesheet" href="/static/style.css?v={{.StyleCSS}}">
 </head>
@@ -387,6 +389,7 @@
                         <button class="direction-tab" :class="{ active: selectedDirection === parseInt(dir) }" @click="selectedDirection = parseInt(dir)" x-text="getDirectionLabel(parseInt(dir))"></button>
                     </template>
                 </div>
+                <div id="route-map" x-show="currentView === 'serviceRoute' && !serviceStopsLoading && serviceStops.length > 0" style="height:45vh;width:100%;border-radius:8px;margin-bottom:12px;"></div>
                 <template x-for="(dirStops, dir) in groupedServiceStops()" :key="dir">
                     <div class="card-list" x-show="selectedDirection === parseInt(dir)">
                         <template x-for="st in dirStops" :key="st.sequence">

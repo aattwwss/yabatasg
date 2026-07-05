@@ -191,11 +191,13 @@ func (s *Store) GetAllStopCodes() ([]string, error) {
 }
 
 type ServiceStop struct {
-	StopCode    string `json:"stopCode"`
-	RoadName    string `json:"roadName"`
-	Description string `json:"description"`
-	Direction   int    `json:"direction"`
-	Sequence    int    `json:"sequence"`
+	StopCode    string  `json:"stopCode"`
+	RoadName    string  `json:"roadName"`
+	Description string  `json:"description"`
+	Direction   int     `json:"direction"`
+	Sequence    int     `json:"sequence"`
+	Latitude    float64 `json:"latitude"`
+	Longitude   float64 `json:"longitude"`
 }
 
 type ServiceSearchResult struct {
@@ -320,7 +322,7 @@ func (s *Store) AlternateServiceStops() ([]ServiceStopRef, error) {
 
 func (s *Store) GetStopsByService(serviceNo string) ([]ServiceStop, error) {
 	rows, err := s.db.Query(`
-		SELECT r.bus_stop_code, COALESCE(s.road_name, ''), COALESCE(s.description, ''), r.direction, r.stop_sequence
+		SELECT r.bus_stop_code, COALESCE(s.road_name, ''), COALESCE(s.description, ''), r.direction, r.stop_sequence, COALESCE(s.latitude, 0), COALESCE(s.longitude, 0)
 		FROM bus_routes r
 		LEFT JOIN bus_stops s ON r.bus_stop_code = s.code
 		WHERE r.service_no = ?
@@ -334,7 +336,7 @@ func (s *Store) GetStopsByService(serviceNo string) ([]ServiceStop, error) {
 	var results []ServiceStop
 	for rows.Next() {
 		var st ServiceStop
-		if err := rows.Scan(&st.StopCode, &st.RoadName, &st.Description, &st.Direction, &st.Sequence); err != nil {
+		if err := rows.Scan(&st.StopCode, &st.RoadName, &st.Description, &st.Direction, &st.Sequence, &st.Latitude, &st.Longitude); err != nil {
 			return nil, err
 		}
 		results = append(results, st)

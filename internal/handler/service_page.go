@@ -48,6 +48,8 @@ func (h *ServicePage) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Description: s.Description,
 			Direction:   s.Direction,
 			Sequence:    s.Sequence,
+			Latitude:    s.Latitude,
+			Longitude:   s.Longitude,
 		}
 		if firstDirection == 0 {
 			firstDirection = s.Direction

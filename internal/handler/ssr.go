@@ -212,28 +212,75 @@ func BuildBreadcrumbJSONLD(code, roadName string) template.JS {
 }
 
 // BuildServiceRouteJSONLD constructs a JSON-LD script for a bus route page.
-func BuildServiceRouteJSONLD(serviceNo, originName, destName, operator, desc string) template.JS {
+func BuildServiceRouteJSONLD(sr *ServiceRouteRenderData, operator string) template.JS {
 	type place struct {
 		Type string `json:"@type"`
 		Name string `json:"name"`
 	}
+	type geo struct {
+		Type      string  `json:"@type"`
+		Latitude  float64 `json:"latitude"`
+		Longitude float64 `json:"longitude"`
+	}
+	type stopItem struct {
+		Type     string `json:"@type"`
+		Name     string `json:"name"`
+		Position int    `json:"position"`
+		Geo      *geo   `json:"geo,omitempty"`
+	}
 	type ld struct {
-		Context        string `json:"@context"`
-		Type           string `json:"@type"`
-		Name           string `json:"name"`
-		Description    string `json:"description"`
-		URL            string `json:"url"`
-		TripOrigin     *place `json:"tripOrigin,omitempty"`
-		TripDestination *place `json:"tripDestination,omitempty"`
-		Provider       *place `json:"provider,omitempty"`
+		Context         string      `json:"@context"`
+		Type            string      `json:"@type"`
+		Name            string      `json:"name"`
+		Description     string      `json:"description"`
+		URL             string      `json:"url"`
+		TripOrigin      *place      `json:"tripOrigin,omitempty"`
+		TripDestination *place      `json:"tripDestination,omitempty"`
+		Provider        *place      `json:"provider,omitempty"`
+		ItemListElement []stopItem  `json:"itemListElement,omitempty"`
+	}
+
+	// Derive origin and destination names from the first direction's stops.
+	var originName, destName string
+	var firstDir int
+	var stops []stopItem
+	for _, s := range sr.Stops {
+		if firstDir == 0 {
+			firstDir = s.Direction
+		}
+		if s.Direction != firstDir {
+			continue
+		}
+		label := s.Description
+		if label == "" {
+			label = s.RoadName
+		}
+		if label == "" {
+			label = s.Code
+		}
+		if s.Sequence == 1 {
+			originName = label
+		}
+		destName = label // last one wins
+
+		item := stopItem{
+			Type:     "BusStop",
+			Name:     fmt.Sprintf("%s (%s)", label, s.Code),
+			Position: s.Sequence,
+		}
+		if s.Latitude != 0 || s.Longitude != 0 {
+			item.Geo = &geo{Type: "GeoCoordinates", Latitude: s.Latitude, Longitude: s.Longitude}
+		}
+		stops = append(stops, item)
 	}
 
 	result := ld{
-		Context:     "https://schema.org",
-		Type:        "BusTrip",
-		Name:        fmt.Sprintf("Bus %s Route", serviceNo),
-		Description: desc,
-		URL:         fmt.Sprintf("https://yabatasg.com/service/%s", serviceNo),
+		Context:         "https://schema.org",
+		Type:            "BusTrip",
+		Name:            fmt.Sprintf("Bus %s Route", sr.ServiceNo),
+		Description:     fmt.Sprintf("Full bus route and stops for service %s from %s to %s in Singapore.", sr.ServiceNo, originName, destName),
+		URL:             fmt.Sprintf("https://yabatasg.com/service/%s", sr.ServiceNo),
+		ItemListElement: stops,
 	}
 	if originName != "" {
 		result.TripOrigin = &place{Type: "BusStation", Name: originName}

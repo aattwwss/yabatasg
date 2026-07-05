@@ -178,6 +178,13 @@ function busApp() {
             this.$watch('selectedDirection', () => {
                 this.$nextTick(() => { this._renderRouteMap(); });
             });
+            this.$watch('currentView', val => {
+                if (val !== 'serviceRoute' && this._routeMap) {
+                    this._routeMap.remove();
+                    this._routeMap = null;
+                    this._routeMarkers = [];
+                }
+            });
         },
 
         _hydrateFromSSR() {
@@ -613,15 +620,15 @@ function busApp() {
                     cls = 'route-marker route-marker-end';
                 }
 
-                this._routeMarkers.push(
-                    L.marker(v.ll, { icon: L.divIcon({
-                        className: cls,
-                        html: '<span>' + v.seq + '</span>',
-                        iconSize: [18, 18],
-                        iconAnchor: [9, 9]
-                    })}).addTo(this._routeMap)
-                      .bindTooltip(v.stop.description || v.stop.roadName || v.stop.stopCode, { direction: 'top' })
-                );
+                const marker = L.marker(v.ll, { icon: L.divIcon({
+                    className: cls,
+                    html: '<span>' + v.seq + '</span>',
+                    iconSize: [18, 18],
+                    iconAnchor: [9, 9]
+                })}).addTo(this._routeMap)
+                  .bindTooltip(v.stop.description || v.stop.roadName || v.stop.stopCode, { direction: 'top' });
+                marker.on('click', () => this._highlightStopCard(v.stop.stopCode));
+                this._routeMarkers.push(marker);
             });
 
             if (latlngs.length >= 2) {
@@ -629,6 +636,23 @@ function busApp() {
                 this._routeMap.fitBounds(bounds.pad(0.1));
             } else if (latlngs.length === 1) {
                 this._routeMap.setView(latlngs[0], 16);
+            }
+        },
+
+        _highlightStopCard(code) {
+            // Clear previous highlight
+            const prev = document.querySelector('.stop-card-highlight');
+            if (prev) prev.classList.remove('stop-card-highlight');
+
+            // Find the matching card in the visible direction list
+            const lists = document.querySelectorAll('.card-list');
+            for (const list of lists) {
+                if (list.style.display === 'none') continue;
+                const el = list.querySelector('[data-stop="' + code + '"]');
+                if (el) {
+                    el.classList.add('stop-card-highlight');
+                    return;
+                }
             }
         },
 

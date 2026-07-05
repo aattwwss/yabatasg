@@ -393,7 +393,7 @@
                 <template x-for="(dirStops, dir) in groupedServiceStops()" :key="dir">
                     <div class="card-list" x-show="selectedDirection === parseInt(dir)">
                         <template x-for="st in dirStops" :key="st.sequence">
-                            <div class="stop-card" @click="selectStop(st.stopCode, st.roadName || 'Stop ' + st.stopCode)" style="cursor:pointer;">
+                            <div class="stop-card" :data-stop="st.stopCode" @click="selectStop(st.stopCode, st.roadName || 'Stop ' + st.stopCode)" style="cursor:pointer;">
                                 <div class="stop-card-left">
                                     <span class="stop-card-name" x-text="st.description || st.roadName || 'Stop ' + st.stopCode"></span>
                                     <span class="stop-card-road" x-text="st.description && st.description !== st.roadName ? st.roadName : ''" x-show="st.description && st.description !== st.roadName"></span>

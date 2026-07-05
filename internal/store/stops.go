@@ -190,6 +190,24 @@ func (s *Store) GetAllStopCodes() ([]string, error) {
 	return codes, rows.Err()
 }
 
+func (s *Store) GetAllServiceNumbers() ([]string, error) {
+	rows, err := s.db.Query(`SELECT DISTINCT service_no FROM bus_services ORDER BY service_no`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var svcs []string
+	for rows.Next() {
+		var no string
+		if err := rows.Scan(&no); err != nil {
+			return nil, err
+		}
+		svcs = append(svcs, no)
+	}
+	return svcs, rows.Err()
+}
+
 type ServiceStop struct {
 	StopCode    string  `json:"stopCode"`
 	RoadName    string  `json:"roadName"`

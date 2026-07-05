@@ -65,6 +65,27 @@ func (h *ServicePage) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data := h.base
 	data.Stop = nil
 
+	// Extract origin (first stop) and destination (last stop) for the first direction.
+	var originName, destName string
+	var lastSeq int
+	for _, s := range stops {
+		if s.Direction == firstDirection {
+			if s.Sequence == 1 {
+				originName = stopLabel(s.Description, s.RoadName, s.StopCode)
+			}
+			if s.Sequence > lastSeq {
+				lastSeq = s.Sequence
+				destName = stopLabel(s.Description, s.RoadName, s.StopCode)
+			}
+		}
+	}
+
+	operator, err := h.store.GetServiceOperator(serviceNo)
+	if err != nil {
+		slog.Warn("Failed to get operator", "serviceNo", serviceNo, "error", err)
+		operator = ""
+	}
+
 	srData := &ServiceRouteRenderData{
 		ServiceNo:       serviceNo,
 		Stops:           routeStops,
@@ -73,14 +94,24 @@ func (h *ServicePage) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	data.ServiceRoute = srData
 
-	titleStop := fmt.Sprintf("Bus %s Route", serviceNo)
-	data.Title = fmt.Sprintf("%s — Stops & Timings | yabata Singapore", titleStop)
-	data.Description = fmt.Sprintf("See all bus stops for service %s in Singapore. View the full route, find your nearest stop, and check real-time arrival times. Powered by LTA DataMall.", serviceNo)
+	// SEO-optimized title: under 60 chars, includes bus number + "Route Singapore".
+	data.Title = fmt.Sprintf("Bus %s Route Singapore | Full Stops & Schedule", serviceNo)
+	// Description under 160 chars, including origin/destination when available.
+	if originName != "" && destName != "" {
+		data.Description = fmt.Sprintf("Find the full Bus %s route from %s to %s. All stops with live arrivals and schedule. Powered by LTA DataMall.", serviceNo, originName, destName)
+	} else {
+		data.Description = fmt.Sprintf("Find the full Bus %s route in Singapore. View all stops, check real-time arrival times, and plan your journey.", serviceNo)
+	}
 	data.Canonical = fmt.Sprintf("https://yabatasg.com/service/%s", serviceNo)
-	data.OGTitle = fmt.Sprintf("%s | yabata", titleStop)
-	data.OGDescription = fmt.Sprintf("Bus %s route stops in Singapore. Powered by LTA DataMall.", serviceNo)
+	data.OGTitle = fmt.Sprintf("Bus %s Route | Stops & Schedule, Singapore", serviceNo)
+	data.OGDescription = data.Description
 	data.OGURL = data.Canonical
-	data.JSONLD = BuildServiceRouteJSONLD(serviceNo)
+
+	jsonldDesc := data.Description
+	if operator != "" {
+		jsonldDesc = fmt.Sprintf("Full bus route and stops for service %s from %s to %s in Singapore. Operated by %s.", serviceNo, originName, destName, operator)
+	}
+	data.JSONLD = BuildServiceRouteJSONLD(serviceNo, originName, destName, operator, jsonldDesc)
 
 	initState, err := BuildServiceInitialState(srData)
 	if err != nil {
@@ -93,4 +124,16 @@ func (h *ServicePage) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		slog.Error("Template execution failed", "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
+}
+
+// stopLabel returns a human-readable label for a stop, preferring
+// Description over RoadName over StopCode.
+func stopLabel(desc, road, code string) string {
+	if desc != "" {
+		return desc
+	}
+	if road != "" {
+		return road
+	}
+	return code
 }

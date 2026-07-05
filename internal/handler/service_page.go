@@ -109,11 +109,7 @@ func (h *ServicePage) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data.OGDescription = data.Description
 	data.OGURL = data.Canonical
 
-	jsonldDesc := data.Description
-	if operator != "" {
-		jsonldDesc = fmt.Sprintf("Full bus route and stops for service %s from %s to %s in Singapore. Operated by %s.", serviceNo, originName, destName, operator)
-	}
-	data.JSONLD = BuildServiceRouteJSONLD(serviceNo, originName, destName, operator, jsonldDesc)
+	data.JSONLD = BuildServiceRouteJSONLD(srData, operator)
 
 	initState, err := BuildServiceInitialState(srData)
 	if err != nil {

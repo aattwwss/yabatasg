@@ -120,17 +120,27 @@ func main() {
 
 	mux.HandleFunc("GET /sitemap.xml", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/xml")
-		codes, err := stopsStore.GetAllStopCodes()
+		stopCodes, err := stopsStore.GetAllStopCodes()
 		if err != nil {
-			slog.Error("sitemap: failed to get codes", "error", err)
-			codes = nil
+			slog.Error("sitemap: failed to get stop codes", "error", err)
+			stopCodes = nil
+		}
+		serviceNos, err := stopsStore.GetAllServiceNumbers()
+		if err != nil {
+			slog.Error("sitemap: failed to get service numbers", "error", err)
+			serviceNos = nil
 		}
 		var buf strings.Builder
 		buf.WriteString(`<?xml version="1.0" encoding="UTF-8"?>`)
 		buf.WriteString(`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`)
 		buf.WriteString(`<url><loc>https://yabatasg.com/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>`)
-		for _, code := range codes {
+		buf.WriteString(`<url><loc>https://yabatasg.com/nearby</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>`)
+		buf.WriteString(`<url><loc>https://yabatasg.com/services</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>`)
+		for _, code := range stopCodes {
 			fmt.Fprintf(&buf, `<url><loc>https://yabatasg.com/stop/%s</loc><changefreq>always</changefreq><priority>0.7</priority></url>`, code)
+		}
+		for _, no := range serviceNos {
+			fmt.Fprintf(&buf, `<url><loc>https://yabatasg.com/service/%s</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>`, no)
 		}
 		buf.WriteString(`</urlset>`)
 		w.Write([]byte(buf.String()))

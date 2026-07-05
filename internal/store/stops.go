@@ -224,6 +224,18 @@ func (s *Store) SearchServices(query string) ([]ServiceSearchResult, error) {
 	return results, rows.Err()
 }
 
+func (s *Store) GetServiceOperator(serviceNo string) (string, error) {
+	var operator string
+	err := s.db.QueryRow(`SELECT operator FROM bus_services WHERE service_no = ?`, serviceNo).Scan(&operator)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return operator, nil
+}
+
 func (s *Store) UpsertServiceOperator(serviceNo, operator string) error {
 	_, err := s.db.Exec(
 		`INSERT OR REPLACE INTO bus_services (service_no, operator) VALUES (?, ?)`,

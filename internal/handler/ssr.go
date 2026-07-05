@@ -210,22 +210,40 @@ func BuildBreadcrumbJSONLD(code, roadName string) template.JS {
 }
 
 // BuildServiceRouteJSONLD constructs a JSON-LD script for a bus route page.
-func BuildServiceRouteJSONLD(serviceNo string) template.JS {
+func BuildServiceRouteJSONLD(serviceNo, originName, destName, operator, desc string) template.JS {
+	type place struct {
+		Type string `json:"@type"`
+		Name string `json:"name"`
+	}
 	type ld struct {
-		Context     string `json:"@context"`
-		Type        string `json:"@type"`
-		Name        string `json:"name"`
-		Description string `json:"description"`
-		URL         string `json:"url"`
+		Context        string `json:"@context"`
+		Type           string `json:"@type"`
+		Name           string `json:"name"`
+		Description    string `json:"description"`
+		URL            string `json:"url"`
+		TripOrigin     *place `json:"tripOrigin,omitempty"`
+		TripDestination *place `json:"tripDestination,omitempty"`
+		Provider       *place `json:"provider,omitempty"`
 	}
 
-	b, _ := json.Marshal(ld{
+	result := ld{
 		Context:     "https://schema.org",
 		Type:        "BusTrip",
 		Name:        fmt.Sprintf("Bus %s Route", serviceNo),
-		Description: fmt.Sprintf("Bus route and stops for service %s in Singapore. Powered by LTA DataMall.", serviceNo),
+		Description: desc,
 		URL:         fmt.Sprintf("https://yabatasg.com/service/%s", serviceNo),
-	})
+	}
+	if originName != "" {
+		result.TripOrigin = &place{Type: "BusStation", Name: originName}
+	}
+	if destName != "" {
+		result.TripDestination = &place{Type: "BusStation", Name: destName}
+	}
+	if operator != "" {
+		result.Provider = &place{Type: "Organization", Name: operator}
+	}
+
+	b, _ := json.Marshal(result)
 	return template.JS(b)
 }
 

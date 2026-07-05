@@ -52,11 +52,13 @@ type ServiceRouteRenderData struct {
 
 // ServiceRouteStop is a single stop along a bus route.
 type ServiceRouteStop struct {
-	Code        string `json:"stopCode"`
-	RoadName    string `json:"roadName"`
-	Description string `json:"description"`
-	Direction   int    `json:"direction"`
-	Sequence    int    `json:"sequence"`
+	Code        string  `json:"stopCode"`
+	RoadName    string  `json:"roadName"`
+	Description string  `json:"description"`
+	Direction   int     `json:"direction"`
+	Sequence    int     `json:"sequence"`
+	Latitude    float64 `json:"latitude"`
+	Longitude   float64 `json:"longitude"`
 }
 
 // BuildHomeJSONLD returns a WebSite + SearchAction JSON-LD script for the homepage.

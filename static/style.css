@@ -1047,3 +1047,39 @@ body.sorting { user-select: none; -webkit-user-select: none; }
     flex-shrink: 0;
     user-select: none;
 }
+
+/* ── Route Map ── */
+#route-map {
+    z-index: 0;
+}
+.route-marker {
+    background: var(--primary);
+    color: #fff;
+    border-radius: 50%;
+    width: 18px !important;
+    height: 18px !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    border: 1.5px solid #fff;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+.route-marker span {
+    line-height: 1;
+}
+.route-marker-start {
+    background: var(--success);
+}
+.route-marker-end {
+    background: var(--danger);
+    border-radius: 5px;
+}
+.route-marker-loop {
+    background: linear-gradient(180deg, var(--success) 50%, var(--danger) 50%);
+    border-radius: 7px;
+}
+[data-theme="dark"] .leaflet-tile {
+    filter: invert(1) hue-rotate(180deg) brightness(0.9);
+}

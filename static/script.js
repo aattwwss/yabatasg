@@ -53,6 +53,10 @@ function busApp() {
         serviceStopsLoading: false,
         selectedDirection: 0,
 
+        // route map
+        _routeMap: null,
+        _routeMarkers: [],
+
         // ssr
         ssrConsumed: false,
 
@@ -171,6 +175,9 @@ function busApp() {
             this._onPopStateBound = this._onPopState.bind(this);
             window.addEventListener('popstate', this._onPopStateBound);
             this.$watch('showAddModal', val => { if (!val) this.editTarget = null; });
+            this.$watch('selectedDirection', () => {
+                this.$nextTick(() => { this._renderRouteMap(); });
+            });
         },
 
         _hydrateFromSSR() {
@@ -182,6 +189,7 @@ function busApp() {
                 this.serviceStops = state.stops || [];
                 this.selectedDirection = this.serviceStops.length > 0 ? (this.serviceStops[0].direction || 0) : 0;
                 this.currentView = 'serviceRoute';
+                this.$nextTick(() => { this._renderRouteMap(); });
                 delete window.__INITIAL_STATE__;
                 return state.serviceNo;
             }
@@ -289,6 +297,7 @@ function busApp() {
             this.theme = this.theme === 'dark' ? 'light' : 'dark';
             document.documentElement.setAttribute('data-theme', this.theme);
             localStorage.setItem(THEME_KEY, this.theme);
+            this._updateMapTheme();
         },
 
         // ── Persistence ──
@@ -543,6 +552,91 @@ function busApp() {
             this._touchStartX = this._touchCurX = 0;
         },
 
+        // ── Route Map ──
+        _initRouteMap() {
+            if (this._routeMap) return;
+            if (typeof L === 'undefined') return;
+            const el = document.getElementById('route-map');
+            if (!el) return;
+            this._routeMap = L.map(el, { zoomControl: true });
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(this._routeMap);
+        },
+
+        _renderRouteMap() {
+            if (typeof L === 'undefined') return;
+            this._initRouteMap();
+            if (!this._routeMap) return;
+            this._routeMap.invalidateSize();
+
+            // Clear previous markers
+            this._routeMarkers.forEach(m => this._routeMap.removeLayer(m));
+            this._routeMarkers = [];
+
+            const dir = this.selectedDirection;
+            const stops = (this.serviceStops || []).filter(s => s.direction === dir);
+            if (stops.length === 0) return;
+
+            const latlngs = [];
+            const color = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim() || '#4f6ef7';
+
+            // Build valid stops with coordinates
+            const valid = [];
+            stops.forEach((st, i) => {
+                if (st.latitude && st.longitude && (st.latitude !== 0 || st.longitude !== 0)) {
+                    valid.push({ ll: [st.latitude, st.longitude], seq: i + 1, stop: st });
+                    latlngs.push([st.latitude, st.longitude]);
+                }
+            });
+
+            // If last stop is at the same location as the first (loop route), skip it
+            const first = valid[0];
+            const last = valid[valid.length - 1];
+            const skipLast = first && last && valid.length > 1 &&
+                first.ll[0].toFixed(6) === last.ll[0].toFixed(6) &&
+                first.ll[1].toFixed(6) === last.ll[1].toFixed(6);
+
+            valid.forEach((v, i) => {
+                if (skipLast && i === valid.length - 1) return;
+
+                // Determine marker style: start / end / loop / regular
+                const isFirst = i === 0;
+                const isLast = i === valid.length - 1;
+                let cls = 'route-marker';
+                if (skipLast && isFirst) {
+                    cls = 'route-marker route-marker-loop';
+                } else if (isFirst) {
+                    cls = 'route-marker route-marker-start';
+                } else if (isLast) {
+                    cls = 'route-marker route-marker-end';
+                }
+
+                this._routeMarkers.push(
+                    L.marker(v.ll, { icon: L.divIcon({
+                        className: cls,
+                        html: '<span>' + v.seq + '</span>',
+                        iconSize: [18, 18],
+                        iconAnchor: [9, 9]
+                    })}).addTo(this._routeMap)
+                      .bindTooltip(v.stop.description || v.stop.roadName || v.stop.stopCode, { direction: 'top' })
+                );
+            });
+
+            if (latlngs.length >= 2) {
+                const bounds = L.latLngBounds(latlngs);
+                this._routeMap.fitBounds(bounds.pad(0.1));
+            } else if (latlngs.length === 1) {
+                this._routeMap.setView(latlngs[0], 16);
+            }
+        },
+
+        _updateMapTheme() {
+            // OSM tiles work for both light and dark themes — no swap needed.
+            // Kept as a hook in case a dark tile provider is added later.
+        },
+
         // ── Drag-and-drop (via Alpine Sort plugin) ──
         _onSort(filteredGi, item, position) {
             const fgroup = this.filteredGroups[filteredGi];
@@ -728,6 +822,7 @@ function busApp() {
             }
             this.serviceStopsLoading = false;
             this.selectedDirection = this.serviceStops.length > 0 ? (this.serviceStops[0].direction || 0) : 0;
+            this.$nextTick(() => { this._renderRouteMap(); });
         },
 
         groupedServiceStops() {

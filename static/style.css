@@ -1089,3 +1089,29 @@ body.sorting { user-select: none; -webkit-user-select: none; }
     background: var(--primary-bg) !important;
     border-color: var(--primary) !important;
 }
+
+/* ── Route map popup ── */
+.route-popup .leaflet-popup-content {
+    margin: 0;
+    font-size: 0.9rem;
+    line-height: 1;
+}
+.route-popup .leaflet-popup-content .route-popup-link {
+    display: block;
+    padding: 4px 8px;
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 500;
+    white-space: nowrap;
+}
+.route-popup .leaflet-popup-content .route-popup-link i {
+    margin-left: 4px;
+    font-size: 0.85em;
+    opacity: 0.7;
+}
+.route-popup .leaflet-popup-content-wrapper {
+    border-radius: 6px;
+}
+.route-popup .leaflet-popup-tip-container {
+    display: none;
+}

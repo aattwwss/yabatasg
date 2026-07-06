@@ -158,6 +158,7 @@ function busApp() {
         },
 
         init() {
+            window.__alpineApp = this;
             this._loadTheme();
             this._loadAuth();
             this._load();
@@ -570,6 +571,15 @@ function busApp() {
                 maxZoom: 19,
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             }).addTo(this._routeMap);
+            // SPA navigation from popup links (Leaflet strips inline onclick)
+            el.addEventListener('click', (e) => {
+                const link = e.target.closest('.route-popup-link');
+                if (!link) return;
+                e.preventDefault();
+                const code = link.dataset.stopCode;
+                const road = link.dataset.roadName || '';
+                if (code) this.selectStop(code, road);
+            });
         },
 
         _renderRouteMap() {
@@ -620,14 +630,19 @@ function busApp() {
                     cls = 'route-marker route-marker-end';
                 }
 
+                const name = v.stop.description || v.stop.roadName || v.stop.stopCode;
+                const popupHtml = '<a class="route-popup-link" href="/stop/' + v.stop.stopCode +
+                    '" data-stop-code="' + v.stop.stopCode +
+                    '" data-road-name="' + this._escHtml(v.stop.roadName || '') + '">' +
+                    this._escHtml(name) + ' <i class="fas fa-arrow-right"></i></a>';
                 const marker = L.marker(v.ll, { icon: L.divIcon({
                     className: cls,
                     html: '<span>' + v.seq + '</span>',
                     iconSize: [18, 18],
                     iconAnchor: [9, 9]
                 })}).addTo(this._routeMap)
-                  .bindTooltip(v.stop.description || v.stop.roadName || v.stop.stopCode, { direction: 'top' });
-                marker.on('click', () => this._highlightStopCard(v.stop.stopCode));
+                  .bindPopup(popupHtml, { className: 'route-popup', closeButton: false });
+                marker.on('click', () => { this._highlightStopCard(v.stop.stopCode); });
                 this._routeMarkers.push(marker);
             });
 
@@ -1192,5 +1207,6 @@ function busApp() {
 
         // ── Helpers ──
         onlyDigits(e) { e.target.value = e.target.value.replace(/[^0-9]/g, ''); },
+        _escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; },
     };
 }

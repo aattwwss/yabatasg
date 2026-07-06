@@ -290,6 +290,8 @@ function busApp() {
                 this.selectedService = route.serviceNo;
                 if (this.serviceStops.length === 0 || this.selectedService !== (e.state?.serviceNo)) {
                     this._loadServiceRoute(route.serviceNo);
+                } else {
+                    this.$nextTick(() => { this._renderRouteMap(); });
                 }
             }
         },

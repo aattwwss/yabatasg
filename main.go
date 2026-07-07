@@ -236,8 +236,11 @@ func main() {
 	}
 
 	srv := &http.Server{
-		Addr:    ":" + port,
-		Handler: mux,
+		Addr: ":" + port,
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Permissions-Policy", "accelerometer=(self), gyroscope=(self), magnetometer=(self)")
+			mux.ServeHTTP(w, r)
+		}),
 	}
 
 	go func() {

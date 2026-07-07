@@ -257,7 +257,7 @@
     </div>
 
     <!-- ── Nearby Stops List ── -->
-    <div x-show="currentView === 'stops'" x-cloak>
+    <div :class="{ 'view-hidden': currentView !== 'stops' }" x-cloak>
         <nav class="breadcrumbs" aria-label="Breadcrumb">
             <ol>
                 <li><a href="/" @click.prevent="currentView = ''; history.pushState({view: 'home'}, '', '/')">Home</a></li>
@@ -294,14 +294,16 @@
             </button>
         </div>
 
+        <div id="nearby-map" :class="{ 'view-hidden': !(!nearbyLoading && nearbyStops.length > 0) }" style="height:45vh;width:100%;border-radius:8px;margin-bottom:12px;"></div>
+
         <div x-show="!nearbyLoading && nearbyStops.length > 0 && filteredNearbyStops.length === 0" class="empty-state" style="padding-top: 30px;">
             <p>No stops match "<span x-text="nearbySearch"></span>"</p>
         </div>
 
         <template x-if="!nearbyLoading && nearbyStops.length > 0 && filteredNearbyStops.length > 0">
-            <div class="stop-cards">
+            <div class="stop-cards" id="nearby-list">
                 <template x-for="stop in filteredNearbyStops" :key="stop.code">
-                    <div class="stop-card" @click="selectStop(stop.code, stop.roadName)">
+                    <div class="stop-card" :data-stop="stop.code" @click="selectStop(stop.code, stop.roadName)">
                         <div class="stop-card-main">
                             <span class="stop-card-name" x-text="stop.description"></span>
                             <span class="stop-card-road" x-text="stop.roadName"></span>
@@ -363,7 +365,7 @@
     </div>
 
     <!-- ── Service Route Detail ── -->
-    <div x-show="currentView === 'serviceRoute'" x-cloak>
+    <div :class="{ 'view-hidden': currentView !== 'serviceRoute' }" x-cloak>
         <nav class="breadcrumbs" aria-label="Breadcrumb">
             <ol>
                 <li><a href="/" @click.prevent="currentView = ''; selectedStop = null; history.pushState({view: 'home'}, '', '/')">Home</a></li>
@@ -389,7 +391,7 @@
                         <button class="direction-tab" :class="{ active: selectedDirection === parseInt(dir) }" @click="selectedDirection = parseInt(dir)" x-text="getDirectionLabel(parseInt(dir))"></button>
                     </template>
                 </div>
-                <div id="route-map" x-show="currentView === 'serviceRoute' && !serviceStopsLoading && serviceStops.length > 0" style="height:45vh;width:100%;border-radius:8px;margin-bottom:12px;"></div>
+                <div id="route-map" :class="{ 'view-hidden': !(currentView === 'serviceRoute' && !serviceStopsLoading && serviceStops.length > 0) }" style="height:45vh;width:100%;border-radius:8px;margin-bottom:12px;"></div>
                 <template x-for="(dirStops, dir) in groupedServiceStops()" :key="dir">
                     <div class="card-list" x-show="selectedDirection === parseInt(dir)">
                         <template x-for="st in dirStops" :key="st.sequence">

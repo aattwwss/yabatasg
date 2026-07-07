@@ -61,6 +61,13 @@
 /* ── Reset ── */
 [x-cloak] { display: none !important; }
 
+/* Hide views without collapsing layout — keeps Leaflet map dimensions intact */
+.view-hidden {
+    position: absolute !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
@@ -1067,6 +1074,22 @@ body.sorting { user-select: none; -webkit-user-select: none; }
     box-shadow: 0 1px 2px rgba(0,0,0,0.3);
 }
 .route-marker span {
+    line-height: 1;
+}
+.nearby-marker {
+    background: var(--primary);
+    color: #fff;
+    border-radius: 50%;
+    width: 24px !important;
+    height: 24px !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    border: 1.5px solid #fff;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+.nearby-marker i {
     line-height: 1;
 }
 .route-marker-start {

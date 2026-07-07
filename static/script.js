@@ -57,6 +57,10 @@ function busApp() {
         _routeMap: null,
         _routeMarkers: [],
 
+        // nearby map
+        _nearbyMap: null,
+        _nearbyMarkers: [],
+
         // ssr
         ssrConsumed: false,
 
@@ -180,11 +184,8 @@ function busApp() {
                 this.$nextTick(() => { this._renderRouteMap(); });
             });
             this.$watch('currentView', val => {
-                if (val !== 'serviceRoute' && this._routeMap) {
-                    this._routeMap.remove();
-                    this._routeMap = null;
-                    this._routeMarkers = [];
-                }
+                // Maps are kept alive — Leaflet doesn't reinitialize cleanly on a reused element.
+                // _renderRouteMap / _renderNearbyMap handle clearing markers and invalidateSize on re-entry.
             });
         },
 
@@ -252,6 +253,8 @@ function busApp() {
                 this.currentView = 'stops';
                 if (this.nearbyStops.length === 0 && !this.nearbyLoading) {
                     this._startNearby();
+                } else if (this.nearbyStops.length > 0) {
+                    this.$nextTick(() => { this._renderNearbyMap(); });
                 }
             } else if (route.view === 'stop') {
                 const code = route.code;
@@ -673,6 +676,84 @@ function busApp() {
             }
         },
 
+        _initNearbyMap() {
+            if (this._nearbyMap) return;
+            if (typeof L === 'undefined') return;
+            const el = document.getElementById('nearby-map');
+            if (!el) return;
+            this._nearbyMap = L.map(el, { zoomControl: true });
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(this._nearbyMap);
+            el.addEventListener('click', (e) => {
+                const link = e.target.closest('.route-popup-link');
+                if (!link) return;
+                e.preventDefault();
+                const code = link.dataset.stopCode;
+                const road = link.dataset.roadName || '';
+                if (code) this.selectStop(code, road);
+            });
+        },
+
+        _highlightNearbyCard(code) {
+            const prev = document.querySelector('.stop-card-highlight');
+            if (prev) prev.classList.remove('stop-card-highlight');
+            const el = document.querySelector('#nearby-list [data-stop="' + code + '"]');
+            if (el) {
+                el.classList.add('stop-card-highlight');
+            }
+        },
+
+        _renderNearbyMap() {
+            if (typeof L === 'undefined') return;
+            this._initNearbyMap();
+            if (!this._nearbyMap) return;
+            this._nearbyMap.invalidateSize();
+
+            this._nearbyMarkers.forEach(m => this._nearbyMap.removeLayer(m));
+            this._nearbyMarkers = [];
+
+            const stops = this.filteredNearbyStops || [];
+            if (stops.length === 0) return;
+
+            const latlngs = [];
+
+            stops.forEach(st => {
+                if (st.latitude && st.longitude && (st.latitude !== 0 || st.longitude !== 0)) {
+                    latlngs.push([st.latitude, st.longitude]);
+                }
+            });
+
+            stops.forEach(st => {
+                if (!st.latitude || !st.longitude || (st.latitude === 0 && st.longitude === 0)) return;
+
+                const name = st.description || st.roadName || st.code;
+                const popupHtml = '<a class="route-popup-link" href="/stop/' + st.code +
+                    '" data-stop-code="' + st.code +
+                    '" data-road-name="' + this._escHtml(st.roadName || '') + '">' +
+                    this._escHtml(name) + ' <i class="fas fa-arrow-right"></i></a>';
+
+                const marker = L.marker([st.latitude, st.longitude], { icon: L.divIcon({
+                    className: 'nearby-marker',
+                    html: '<i class="fas fa-bus"></i>',
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                })}).addTo(this._nearbyMap)
+                  .bindPopup(popupHtml, { className: 'route-popup', closeButton: false });
+
+                marker.on('click', () => { this._highlightNearbyCard(st.code); });
+                this._nearbyMarkers.push(marker);
+            });
+
+            if (latlngs.length >= 2) {
+                const bounds = L.latLngBounds(latlngs);
+                this._nearbyMap.fitBounds(bounds.pad(0.1));
+            } else if (latlngs.length === 1) {
+                this._nearbyMap.setView(latlngs[0], 16);
+            }
+        },
+
         _updateMapTheme() {
             // OSM tiles work for both light and dark themes — no swap needed.
             // Kept as a hook in case a dark tile provider is added later.
@@ -763,6 +844,7 @@ function busApp() {
                 if (!r.ok) throw new Error(`HTTP ${r.status}`);
                 this.nearbyStops = await r.json();
                 this.filteredNearbyStops = [...this.nearbyStops];
+                this.$nextTick(() => { this._renderNearbyMap(); });
             } catch {
                 this.geoError = 'Failed to load nearby stops';
             }
@@ -773,13 +855,14 @@ function busApp() {
             const q = this.nearbySearch.toLowerCase().trim();
             if (!q) {
                 this.filteredNearbyStops = [...this.nearbyStops];
-                return;
+            } else {
+                this.filteredNearbyStops = this.nearbyStops.filter(s =>
+                    s.code.includes(q) ||
+                    s.roadName.toLowerCase().includes(q) ||
+                    s.description.toLowerCase().includes(q)
+                );
             }
-            this.filteredNearbyStops = this.nearbyStops.filter(s =>
-                s.code.includes(q) ||
-                s.roadName.toLowerCase().includes(q) ||
-                s.description.toLowerCase().includes(q)
-            );
+            this.$nextTick(() => { this._renderNearbyMap(); });
         },
 
         async selectStop(code, roadName) {

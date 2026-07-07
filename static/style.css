@@ -1098,11 +1098,6 @@ body.sorting { user-select: none; -webkit-user-select: none; }
     background: transparent !important;
     border: none !important;
 }
-.user-marker-wrap {
-    width: 24px;
-    height: 24px;
-    position: relative;
-}
 .user-marker-dot {
     width: 14px;
     height: 14px;
@@ -1110,22 +1105,6 @@ body.sorting { user-select: none; -webkit-user-select: none; }
     border: 2.5px solid #fff;
     border-radius: 50%;
     box-shadow: 0 0 0 3px rgba(66, 133, 244, 0.25);
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-}
-.user-marker-dot.has-heading::before {
-    content: '';
-    position: absolute;
-    top: -12px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 0;
-    height: 0;
-    border-left: 5px solid transparent;
-    border-right: 5px solid transparent;
-    border-bottom: 9px solid #4285f4;
 }
 
 .route-marker-start {

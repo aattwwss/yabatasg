@@ -60,6 +60,12 @@ function busApp() {
         // nearby map
         _nearbyMap: null,
         _nearbyMarkers: [],
+        _userLat: null,
+        _userLng: null,
+        _userHeading: null,
+        _compassHeading: null,
+        _compassWatchId: null,
+        _userMarkerWrap: null,
 
         // ssr
         ssrConsumed: false,
@@ -719,6 +725,26 @@ function busApp() {
 
             const latlngs = [];
 
+            // User location marker
+            if (this._userLat != null && this._userLng != null) {
+                latlngs.push([this._userLat, this._userLng]);
+                const h = this._compassHeading != null ? this._compassHeading : this._userHeading;
+                const hasHeading = h != null && !isNaN(h);
+                const wrapStyle = hasHeading ? ' style="transform: rotate(' + h + 'deg)"' : '';
+                const dotClass = 'user-marker-dot' + (hasHeading ? ' has-heading' : '');
+                const userIcon = L.divIcon({
+                    className: 'user-location-marker',
+                    html: '<div class="user-marker-wrap"' + wrapStyle + '><div class="' + dotClass + '"></div></div>',
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                });
+                const marker = L.marker([this._userLat, this._userLng], { icon: userIcon, zIndexOffset: 1000 }).addTo(this._nearbyMap);
+                // Store ref for live heading updates (Leaflet exposes the icon element as _icon)
+                this._userMarkerWrap = marker._icon?.querySelector('.user-marker-wrap');
+                // Apply any heading already received from the compass
+                this._updateUserMarkerHeading();
+            }
+
             stops.forEach(st => {
                 if (st.latitude && st.longitude && (st.latitude !== 0 || st.longitude !== 0)) {
                     latlngs.push([st.latitude, st.longitude]);
@@ -751,6 +777,89 @@ function busApp() {
                 this._nearbyMap.fitBounds(bounds.pad(0.1));
             } else if (latlngs.length === 1) {
                 this._nearbyMap.setView(latlngs[0], 16);
+            }
+        },
+
+        _startCompass() {
+            // Already listening
+            if (this._compassWatchId != null) return;
+
+            const onHeading = (h) => {
+                if (h != null && !isNaN(h)) {
+                    this._compassHeading = h;
+                    this._updateUserMarkerHeading();
+                }
+            };
+
+            // AbsoluteOrientationSensor — modern API (not deprecated)
+            if (typeof AbsoluteOrientationSensor === 'function') {
+                try {
+                    const sensor = new AbsoluteOrientationSensor({ frequency: 10 });
+                    sensor.addEventListener('reading', () => {
+                        // quaternion → compass heading
+                        const q = sensor.quaternion;
+                        if (q) {
+                            // Convert quaternion to Euler, extract yaw (heading)
+                            const heading = Math.atan2(
+                                2 * q[0] * q[1] + 2 * q[2] * q[3],
+                                1 - 2 * q[1] * q[1] - 2 * q[2] * q[2]
+                            ) * 180 / Math.PI;
+                            onHeading((heading + 360) % 360);
+                        }
+                    });
+                    sensor.addEventListener('error', () => { this._startCompassFallback(onHeading); });
+                    sensor.start();
+                    this._compassWatchId = { type: 'sensor', sensor };
+                    return;
+                } catch (_) {}
+            }
+
+            this._startCompassFallback(onHeading);
+        },
+
+        _startCompassFallback(onHeading) {
+            const handler = (event) => {
+                // iOS: webkitCompassHeading gives true north
+                let h = event.webkitCompassHeading;
+                if (h == null && event.alpha != null) {
+                    h = event.alpha;
+                    if (event.absolute && window.screen?.orientation?.angle) {
+                        h -= window.screen.orientation.angle;
+                        if (h < 0) h += 360;
+                    }
+                }
+                onHeading(h);
+            };
+
+            if ('ondeviceorientationabsolute' in window) {
+                window.addEventListener('deviceorientationabsolute', handler);
+                this._compassWatchId = 'absolute';
+                return;
+            }
+
+            if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(state => {
+                        if (state === 'granted') {
+                            window.addEventListener('deviceorientation', handler);
+                            this._compassWatchId = 'ios';
+                        }
+                    })
+                    .catch(() => {});
+                return;
+            }
+
+            window.addEventListener('deviceorientation', handler);
+            this._compassWatchId = 'fallback';
+        },
+
+        _updateUserMarkerHeading() {
+            const wrap = this._userMarkerWrap;
+            if (!wrap) return;
+            const h = this._compassHeading;
+            if (h != null && !isNaN(h)) {
+                wrap.style.transform = 'rotate(' + h + 'deg)';
+                wrap.querySelector('.user-marker-dot')?.classList.add('has-heading');
             }
         },
 
@@ -832,13 +941,16 @@ function busApp() {
             }
 
             navigator.geolocation.getCurrentPosition(
-                pos => this._loadNearby(pos.coords.latitude, pos.coords.longitude),
+                pos => { this._loadNearby(pos.coords.latitude, pos.coords.longitude, pos.coords.heading); this._startCompass(); },
                 err => { console.error('Geolocation error:', err); this.geoError = err.message; this.nearbyLoading = false; },
                 { timeout: 10000, maximumAge: 60000 }
             );
         },
 
-        async _loadNearby(lat, lng) {
+        async _loadNearby(lat, lng, heading) {
+            this._userLat = lat;
+            this._userLng = lng;
+            this._userHeading = heading;
             try {
                 const r = await fetch(`/api/v1/stops/nearby?lat=${lat}&lng=${lng}&limit=20`);
                 if (!r.ok) throw new Error(`HTTP ${r.status}`);

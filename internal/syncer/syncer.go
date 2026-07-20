@@ -25,8 +25,7 @@ func New(s *store.Store, c LTAClient) *Syncer {
 }
 
 func (sy *Syncer) Run(ctx context.Context) {
-	ticker := time.NewTicker(7 * 24 * time.Hour)
-	defer ticker.Stop()
+	interval := 7 * 24 * time.Hour
 
 	last, err := sy.store.LastSynced()
 	if err != nil {
@@ -34,8 +33,14 @@ func (sy *Syncer) Run(ctx context.Context) {
 	}
 	if last.IsZero() {
 		slog.Info("No bus stops data found, starting initial sync")
-		sy.SyncNow()
+		sy.SyncNow(ctx)
+	} else if time.Since(last) > 7*24*time.Hour {
+		slog.Info("Last sync was more than 7 days ago, scheduling next sync in 1 day")
+		interval = 24 * time.Hour
 	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 
 	for {
 		select {
@@ -43,17 +48,21 @@ func (sy *Syncer) Run(ctx context.Context) {
 			return
 		case <-ticker.C:
 			slog.Info("Starting scheduled bus stops sync")
-			sy.SyncNow()
+			sy.SyncNow(ctx)
+			if interval != 7*24*time.Hour {
+				interval = 7 * 24 * time.Hour
+				ticker.Reset(interval)
+			}
 		}
 	}
 }
 
-func (sy *Syncer) SyncNow() error {
+func (sy *Syncer) SyncNow(ctx context.Context) error {
 	slog.Info("Syncing bus stops from LTA")
 	var all []lta.BusStop
 
 	for skip := 0; ; skip += 500 {
-		res, err := sy.client.GetBusStops(context.Background(), skip)
+		res, err := sy.client.GetBusStops(ctx, skip)
 		if err != nil {
 			slog.Error("Failed to fetch bus stops", "skip", skip, "error", err)
 			return err
@@ -76,7 +85,7 @@ func (sy *Syncer) SyncNow() error {
 	slog.Info("Syncing bus routes from LTA")
 	var allRoutes []lta.BusRoute
 	for skip := 0; ; skip += 500 {
-		res, err := sy.client.GetBusRoutes(context.Background(), skip)
+		res, err := sy.client.GetBusRoutes(ctx, skip)
 		if err != nil {
 			slog.Error("Failed to fetch bus routes", "skip", skip, "error", err)
 			return err
@@ -98,15 +107,15 @@ func (sy *Syncer) SyncNow() error {
 		slog.Error("Failed to seed service operators", "error", err)
 	}
 
-	sy.syncOperators()
+	sy.syncOperators(ctx)
 
 	return nil
 }
 
-func (sy *Syncer) queryStopsForOperators(stops map[string][]string) int {
+func (sy *Syncer) queryStopsForOperators(ctx context.Context, stops map[string][]string) int {
 	var synced int
 	for stopCode := range stops {
-		arrivals, err := sy.client.GetBusArrival(context.Background(), stopCode, "")
+		arrivals, err := sy.client.GetBusArrival(ctx, stopCode, "")
 		if err != nil {
 			slog.Warn("Failed to fetch arrivals for operator sync", "stopCode", stopCode, "error", err)
 			continue
@@ -123,7 +132,7 @@ func (sy *Syncer) queryStopsForOperators(stops map[string][]string) int {
 	return synced
 }
 
-func (sy *Syncer) syncOperators() {
+func (sy *Syncer) syncOperators(ctx context.Context) {
 	refs, err := sy.store.DistinctServiceStops()
 	if err != nil {
 		slog.Error("Failed to get distinct services for operator sync", "error", err)
@@ -139,7 +148,7 @@ func (sy *Syncer) syncOperators() {
 	}
 
 	slog.Info("Syncing bus operators", "stops", len(byStop), "services", len(refs))
-	synced := sy.queryStopsForOperators(byStop)
+	synced := sy.queryStopsForOperators(ctx, byStop)
 	slog.Info("Bus operators first pass", "stops_queried", synced)
 
 	// Second pass: services still missing operators, try different stops.
@@ -167,7 +176,7 @@ func (sy *Syncer) syncOperators() {
 
 	if len(byStop) > 0 {
 		slog.Info("Syncing bus operators (retry)", "stops", len(byStop), "services", len(missing))
-		synced = sy.queryStopsForOperators(byStop)
+		synced = sy.queryStopsForOperators(ctx, byStop)
 		slog.Info("Bus operators second pass", "stops_queried", synced)
 	}
 }

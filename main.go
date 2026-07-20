@@ -222,7 +222,7 @@ func main() {
 
 	mux.HandleFunc("POST /api/v1/stops/sync", corsMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if err := stopsSyncer.SyncNow(); err != nil {
+		if err := stopsSyncer.SyncNow(r.Context()); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 			return

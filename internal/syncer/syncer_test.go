@@ -59,7 +59,7 @@ func TestSyncNow(t *testing.T) {
 	}
 
 	syncer := New(s, client)
-	if err := syncer.SyncNow(); err != nil {
+	if err := syncer.SyncNow(context.Background()); err != nil {
 		t.Fatalf("SyncNow failed: %v", err)
 	}
 
@@ -101,7 +101,7 @@ func TestSyncNowPagination(t *testing.T) {
 	syncer := New(s, client)
 
 	start := time.Now()
-	if err := syncer.SyncNow(); err != nil {
+	if err := syncer.SyncNow(context.Background()); err != nil {
 		t.Fatalf("SyncNow failed: %v", err)
 	}
 	t.Logf("Synced 600 stops in %v", time.Since(start))
@@ -143,7 +143,7 @@ func TestSyncNowOperators(t *testing.T) {
 	}
 
 	syncer := New(s, client)
-	if err := syncer.SyncNow(); err != nil {
+	if err := syncer.SyncNow(context.Background()); err != nil {
 		t.Fatalf("SyncNow failed: %v", err)
 	}
 

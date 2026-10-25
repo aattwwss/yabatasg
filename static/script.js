@@ -119,6 +119,15 @@ function busApp() {
             history.back();
         },
 
+        goHome() {
+            const scroll = window.scrollY;
+            this.currentView = '';
+            this.selectedStop = null;
+            this._stopStopPolling();
+            history.pushState({ view: 'home', scroll }, '', '/');
+            window.scrollTo(0, 0);
+        },
+
         isShortcutStop(code) {
             return code && !!this._findShortcutByCode(code);
         },
@@ -165,6 +174,9 @@ function busApp() {
 
         init() {
             window.__alpineApp = this;
+            // We manage scroll ourselves: top on forward nav, restored on back.
+            // The browser's own popstate restoration races with our view swaps.
+            if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
             this._loadTheme();
             this._loadAuth();
             this._load();
@@ -299,6 +311,11 @@ function busApp() {
                     this.$nextTick(() => { this._renderRouteMap(); });
                 }
             }
+
+            // Restore the scroll position saved when we left this view.
+            // Entries pushed before this existed, or initial load, default to
+            // the top. $nextTick so the incoming view has rendered first.
+            this.$nextTick(() => { window.scrollTo(0, e.state?.scroll ?? 0); });
         },
 
         // ── Theme ──
@@ -827,8 +844,10 @@ function busApp() {
 
         // ── Nearby ──
         showNearby() {
-            history.pushState({ view: 'stops' }, '', '/nearby');
+            const scroll = window.scrollY;
+            history.pushState({ view: 'stops', scroll }, '', '/nearby');
             this._startNearby();
+            window.scrollTo(0, 0);
         },
 
         _startNearby() {
@@ -882,9 +901,11 @@ function busApp() {
         },
 
         async selectStop(code, roadName) {
+            const scroll = window.scrollY;
             this.currentView = 'stopDetail';
             this.selectedStop = { code, roadName, services: [], loading: true, error: '' };
-            history.pushState({ view: 'stop', code, roadName }, '', `/stop/${code}`);
+            history.pushState({ view: 'stop', code, roadName, scroll }, '', `/stop/${code}`);
+            window.scrollTo(0, 0);
             this._loadStopDetail(code);
             this._startStopPolling(code);
         },
@@ -906,12 +927,14 @@ function busApp() {
         },
 
         async addShortcutFromStop(stopCode) {
+            const scroll = window.scrollY;
             this.form.stopNumber = stopCode;
             this.form.name = '';
             this.form.groupName = this.groups.length > 0 ? this.groups[0].name : '';
             this.currentView = '';
             this.selectedStop = null;
-            history.pushState({ view: 'home' }, '', '/');
+            history.pushState({ view: 'home', scroll }, '', '/');
+            window.scrollTo(0, 0);
             this.showAddModal = true;
             const info = await this._lookupStop(stopCode);
             if (info) { this.form.name = info.roadName || ''; }
@@ -919,12 +942,14 @@ function busApp() {
 
         // ── Service Search ──
         showServiceSearch() {
+            const scroll = window.scrollY;
             this.currentView = 'serviceSearch';
             this.selectedStop = null;
             this._stopStopPolling();
             this.serviceSearchTerm = '';
             this.serviceResults = [];
-            history.pushState({ view: 'serviceSearch' }, '', '/services');
+            history.pushState({ view: 'serviceSearch', scroll }, '', '/services');
+            window.scrollTo(0, 0);
         },
 
         async searchServices() {
@@ -942,11 +967,13 @@ function busApp() {
         },
 
         async showServiceRoute(no) {
+            const scroll = window.scrollY;
             this.currentView = 'serviceRoute';
             this.selectedService = no;
             this.selectedStop = null;
             this._stopStopPolling();
-            history.pushState({ view: 'serviceRoute', serviceNo: no }, '', `/service/${no}`);
+            history.pushState({ view: 'serviceRoute', serviceNo: no, scroll }, '', `/service/${no}`);
+            window.scrollTo(0, 0);
             await this._loadServiceRoute(no);
         },
 
@@ -1002,8 +1029,10 @@ function busApp() {
                 view: 'stop', code: s.stopNumber,
                 roadName: roadName,
                 cachedServices: plainServices,
-                cachedAt: s.lastFetched
+                cachedAt: s.lastFetched,
+                scroll: window.scrollY
             }, '', `/stop/${s.stopNumber}`);
+            window.scrollTo(0, 0);
 
             // Update the view: show cached data instantly if available,
             // then fetch fresh arrivals.

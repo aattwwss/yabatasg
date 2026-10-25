@@ -37,7 +37,7 @@
 
     <!-- Header -->
     <header class="header">
-        <a href="/" class="header-left" @click.prevent="currentView = ''; selectedStop = null; _stopStopPolling(); history.pushState({view: 'home'}, '', '/')">
+        <a href="/" class="header-left" @click.prevent="goHome()">
             <span class="logo"><i class="fas fa-bus"></i></span>
             <span class="app-name">yabata</span>
         </a>
@@ -260,7 +260,7 @@
     <div :class="{ 'view-hidden': currentView !== 'stops' }" x-cloak>
         <nav class="breadcrumbs" aria-label="Breadcrumb">
             <ol>
-                <li><a href="/" @click.prevent="currentView = ''; history.pushState({view: 'home'}, '', '/')">Home</a></li>
+                <li><a href="/" @click.prevent="goHome()">Home</a></li>
                 <li aria-current="page">Nearby Stops</li>
             </ol>
         </nav>
@@ -322,13 +322,13 @@
     <div x-show="currentView === 'serviceSearch'" x-cloak>
         <nav class="breadcrumbs" aria-label="Breadcrumb">
             <ol>
-                <li><a href="/" @click.prevent="currentView = ''; history.pushState({view: 'home'}, '', '/')">Home</a></li>
+                <li><a href="/" @click.prevent="goHome()">Home</a></li>
                 <li aria-current="page">Find Bus Service</li>
             </ol>
         </nav>
 
         <div class="view-header">
-            <button class="btn-icon" @click="currentView = ''; _stopStopPolling(); history.pushState({view: 'home'}, '', '/')"><i class="fas fa-arrow-left"></i></button>
+            <button class="btn-icon" @click="goHome()"><i class="fas fa-arrow-left"></i></button>
             <h2>Find Bus Service</h2>
             <div></div>
         </div>
@@ -368,7 +368,7 @@
     <div :class="{ 'view-hidden': currentView !== 'serviceRoute' }" x-cloak>
         <nav class="breadcrumbs" aria-label="Breadcrumb">
             <ol>
-                <li><a href="/" @click.prevent="currentView = ''; selectedStop = null; history.pushState({view: 'home'}, '', '/')">Home</a></li>
+                <li><a href="/" @click.prevent="goHome()">Home</a></li>
                 <li aria-current="page"><span x-text="'Bus ' + selectedService"></span></li>
             </ol>
         </nav>
@@ -415,7 +415,7 @@
     <div x-show="currentView === 'stopDetail'" x-cloak>
         <nav class="breadcrumbs" aria-label="Breadcrumb">
             <ol>
-                <li><a href="/" @click.prevent="currentView = ''; selectedStop = null; _stopStopPolling(); history.pushState({view: 'home'}, '', '/')">Home</a></li>
+                <li><a href="/" @click.prevent="goHome()">Home</a></li>
                 <li aria-current="page"><span x-text="'Bus Stop ' + selectedStop?.code"></span></li>
             </ol>
         </nav>
